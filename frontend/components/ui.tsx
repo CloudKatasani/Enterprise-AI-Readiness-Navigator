@@ -281,14 +281,14 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 export function UnknownEstateNotice({ snapshotId }: { snapshotId: string }) {
   return (
     <div className="notice">
-      <h3>No such assessed estate</h3>
+      <h3>No such assessed organization</h3>
       <p className="muted">
         Snapshot <code>{snapshotId}</code> is not in the portfolio. Snapshots are immutable, so a
         link only breaks when the estate was never assessed on this instance — or the database was
         re-seeded since the link was made.
       </p>
       <p style={{ marginBottom: 0 }}>
-        <Link href="/">← Back to all assessed estates</Link>
+        <Link href="/">← Back to all organizations</Link>
       </p>
     </div>
   );

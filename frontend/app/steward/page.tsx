@@ -21,11 +21,11 @@ export default async function StewardIndexPage() {
   return (
     <>
       <div className="eyebrow">Steward view</div>
-      <h1>Choose an estate to review</h1>
+      <h1>Choose an organization to review</h1>
       <p className="lede">
         Each estate keeps its own review queue of low-confidence inferences awaiting a human
         decision, its findings queue ordered by severity, and the draft plays generated from them.
-        Open any estate below.
+        Open any organization below.
       </p>
 
       <Portfolio industries={industries} view="steward" />

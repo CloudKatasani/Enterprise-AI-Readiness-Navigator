@@ -21,11 +21,11 @@ export default async function ArchitectIndexPage() {
   return (
     <>
       <div className="eyebrow">Architect view</div>
-      <h1>Choose an estate to drill into</h1>
+      <h1>Choose an organization to drill into</h1>
       <p className="lede">
         The architect view resolves a score to the evidence behind it: pillar heatmaps by platform
         and by business domain, then every criterion expanded to its check results, confidences and
-        failing targets. Open any estate below.
+        failing targets. Open any organization below.
       </p>
 
       <Portfolio industries={industries} view="architect" />

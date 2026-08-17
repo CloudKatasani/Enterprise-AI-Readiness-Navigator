@@ -307,15 +307,15 @@ export default async function MethodologyPage({
       <p className="lede">
         The worked example is <strong>{view.assessment.tenant}</strong>
         {view.requested_snapshot ? (
-          <>, one of the {organisations.length} estates in this portfolio.</>
+          <>, one of the {organisations.length} organizations in this portfolio.</>
         ) : (
           <>
             {" "}
-            — the median estate of the {organisations.length} in this portfolio, chosen as the default
-            because it shows both a pillar that scores well and a pillar that does not.
+            — the median organization of the {organisations.length} in this portfolio, chosen as the
+            default because it shows both a pillar that scores well and a pillar that does not.
           </>
         )}{" "}
-        Pick any other estate to re-work the same calculation against its evidence.
+        Pick any other organization to re-work the same calculation against its evidence.
       </p>
 
       <div className="estate-picker">
@@ -1110,9 +1110,9 @@ export default async function MethodologyPage({
         </p>
       </section>
 
-      <h2>Read the same estate in the role views</h2>
+      <h2>Read this organization in the role views</h2>
       <p className="lede">
-        This page explains the method. The estate&apos;s own pages apply it:{" "}
+        This page explains the method. This organization&apos;s own pages apply it:{" "}
         <Link href={estateHref(view.assessment.snapshot_id)}>the executive view</Link> for the score
         and roadmap,{" "}
         <Link href={estateHref(view.assessment.snapshot_id, "architect")}>the architect view</Link> for

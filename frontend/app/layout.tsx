@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span>Enterprise AI Readiness Navigator</span>
             </Link>
             <nav className="roles">
-              <Link href="/">Estates</Link>
+              <Link href="/">Organizations</Link>
               <Link href="/architect">Architect</Link>
               <Link href="/steward">Steward</Link>
               <Link href="/connectors">Connectors</Link>

@@ -21,11 +21,11 @@ export default async function PortfolioPage() {
   return (
     <>
       <div className="eyebrow">Executive view</div>
-      <h1>Assessed estates</h1>
+      <h1>Assessed organizations</h1>
       <p className="lede">
-        {organisations.length} organisations across {industries.length} industries, each scored from
-        its own machine evidence. Open an estate to read its blockers, benchmarks, roadmap, evidence
-        and review queue — every estate has its own page.
+        {organisations.length} organizations across {industries.length} industries, each assessed on its
+        own data estate and scored from its own machine evidence. Open one to read its blockers,
+        benchmarks, roadmap, evidence and review queue — every organization has its own page.
       </p>
       <p className="muted" style={{ marginTop: "-0.5rem" }}>
         {graded.length} scored · {blocked.length} carrying at least one hard blocker · scores are

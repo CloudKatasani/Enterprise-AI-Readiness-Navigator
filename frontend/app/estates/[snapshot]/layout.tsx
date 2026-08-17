@@ -35,7 +35,7 @@ export default async function EstateLayout({
       <div className="estate-head">
         <div>
           <div className="eyebrow">
-            <Link href="/">Assessed estates</Link> · {industry.industry_label}
+            <Link href="/">Organizations</Link> · {industry.industry_label}
           </div>
           <h1 style={{ marginBottom: "0.3rem" }}>{org.tenant}</h1>
           <div className="estate-strip">
