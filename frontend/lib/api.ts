@@ -313,8 +313,25 @@ export interface MethodologySample {
   dq_monitors: { dataset_urn: string; tool: string; check_type: string; defined_as_data: boolean; enabled: boolean; pass_rate: number | null }[];
   ml_assets: { name: string; kind: string; registered: boolean; training_data_lineage: boolean; promotion_gated: boolean }[];
   semantic_models: { name: string; platform: string; certified: boolean; field_count: number; described_field_count: number }[];
-  agents: { name: string; identity_kind: string; scoped_roles: boolean; write_actions: boolean; write_approval_gate: boolean; action_audit: boolean }[];
-  rag_corpora: { name: string; source_system: string; authoritative_doc_count: number; indexed_doc_count: number; acl_propagated: boolean; citation_enforced: boolean }[];
+  agents: {
+    name: string;
+    identity_kind: string;
+    scoped_roles: boolean;
+    write_actions: boolean;
+    write_approval_gate: boolean;
+    action_audit: boolean;
+    replayable_trail: boolean;
+  }[];
+  rag_corpora: {
+    name: string;
+    source_system: string;
+    authoritative_doc_count: number;
+    indexed_doc_count: number;
+    acl_propagated: boolean;
+    retrieval_filter_enforced: boolean;
+    contains_classified: boolean;
+    citation_enforced: boolean;
+  }[];
 }
 
 export interface MethodologyView {

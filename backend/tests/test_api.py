@@ -300,3 +300,26 @@ def test_methodology_defaults_to_an_estate_without_a_snapshot(client: TestClient
     assert view["default_snapshot"]
     assert view["requested_snapshot"] is None
     assert view["pillars"]
+
+
+def test_methodology_sample_carries_every_blocker_property(
+    client: TestClient, demo_snapshot: str
+) -> None:
+    """AG-006 and RG-005 each read several properties; showing one would mislead.
+
+    An agent whose actions are logged still fails AG-006 under a shared identity,
+    and a corpus whose ACLs propagate still fails RG-005 with no retrieval-time
+    enforcement. The sample rows must carry every property the check reads so a
+    blocked estate cannot be made to look clear.
+    """
+    sample = client.get(
+        "/api/methodology", params={"snapshot": demo_snapshot}
+    ).json()["provenance"]["sample"]
+
+    assert sample["agents"]
+    for agent in sample["agents"]:
+        assert {"identity_kind", "action_audit", "replayable_trail"} <= set(agent)
+
+    assert sample["rag_corpora"]
+    for corpus in sample["rag_corpora"]:
+        assert {"acl_propagated", "retrieval_filter_enforced", "contains_classified"} <= set(corpus)

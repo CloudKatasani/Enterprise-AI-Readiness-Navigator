@@ -475,9 +475,13 @@ export default async function MethodologyPage({
             </section>
           ) : null}
 
-          <div className="grid cols-2">
-            <section className="card">
-              <h3 style={{ marginTop: 0 }}>Protection policies</h3>
+          <section className="card">
+            <h3 style={{ marginTop: 0 }}>Protection policies</h3>
+              <p className="muted" style={{ fontSize: "0.86rem" }}>
+                A policy is a control the platform enforces on data it protects — masking a column,
+                restricting rows, or applying a classification tag. The Security pillar measures which
+                classified columns one actually covers, not how many policies exist.
+              </p>
               {sample.policies.length ? (
                 sample.policies.map((policy) => (
                   <div key={policy.name} style={{ marginBottom: "0.5rem" }}>
@@ -492,26 +496,180 @@ export default async function MethodologyPage({
                 <p className="muted" style={{ margin: 0 }}>
                   None harvested — which is itself the finding the Security pillar reports.
                 </p>
-              )}
-            </section>
-            <section className="card">
-              <h3 style={{ marginTop: 0 }}>Agents and corpora</h3>
-              {sample.agents.map((agent) => (
-                <div key={agent.name} className="muted" style={{ fontSize: "0.84rem" }}>
-                  <span className="mono">{agent.name}</span> · identity {agent.identity_kind} · scoped
-                  roles {yesNo(agent.scoped_roles)} · audit {yesNo(agent.action_audit)} · approval gate{" "}
-                  {yesNo(agent.write_approval_gate)}
-                </div>
-              ))}
-              {sample.rag_corpora.map((corpus) => (
-                <div key={corpus.name} className="muted" style={{ fontSize: "0.84rem" }}>
-                  <span className="mono">{corpus.name}</span> · {corpus.indexed_doc_count} of{" "}
-                  {corpus.authoritative_doc_count} docs indexed · ACLs propagated{" "}
-                  {yesNo(corpus.acl_propagated)} · citations enforced {yesNo(corpus.citation_enforced)}
-                </div>
-              ))}
-            </section>
-          </div>
+            )}
+          </section>
+
+          <section className="card table-scroll">
+            <h3 style={{ marginTop: 0 }}>AI agents running against this estate</h3>
+            <p className="muted" style={{ maxWidth: "88ch" }}>
+              An <strong>agent</strong> here is a non-human identity — a copilot, assistant or
+              automation — that queries this estate&apos;s data and may act on it. The Agent Readiness
+              pillar and the Agent Readiness Index score the controls around each one, because an
+              agent inherits whatever access and blind spots its identity has. These are the
+              properties those checks read:
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Identity</th>
+                  <th>Scoped roles</th>
+                  <th>Writes</th>
+                  <th>Approval gate</th>
+                  <th>Actions logged</th>
+                  <th>Trail replayable</th>
+                  <th>Passes AG-006</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sample.agents.map((agent) => {
+                  const attributable =
+                    agent.action_audit && agent.replayable_trail && agent.identity_kind === "distinct";
+                  return (
+                    <tr key={agent.name}>
+                      <td className="mono" style={{ fontSize: "0.8rem" }}>
+                        {agent.name}
+                      </td>
+                      <td
+                        style={
+                          agent.identity_kind === "distinct"
+                            ? undefined
+                            : { color: "var(--severity-high)", fontWeight: 600 }
+                        }
+                      >
+                        {agent.identity_kind}
+                      </td>
+                      <td>{yesNo(agent.scoped_roles)}</td>
+                      <td>{yesNo(agent.write_actions)}</td>
+                      <td>{agent.write_actions ? yesNo(agent.write_approval_gate) : "n/a"}</td>
+                      <td>{yesNo(agent.action_audit)}</td>
+                      <td>{yesNo(agent.replayable_trail)}</td>
+                      <td>
+                        <Pill
+                          label={attributable ? "pass" : "fail"}
+                          color={attributable ? "var(--grade-ready)" : "var(--severity-critical)"}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <ul className="muted" style={{ fontSize: "0.84rem", paddingLeft: "1.1rem", margin: "0.7rem 0 0" }}>
+              <li>
+                <strong>Identity</strong> — <em>distinct</em> means the agent authenticates as itself,
+                so its actions can be attributed to it. <em>Shared</em> means it borrows a human or
+                service account, and nothing it does can be told apart from that account&apos;s other
+                traffic.
+              </li>
+              <li>
+                <strong>Scoped roles</strong> — whether its grants are limited to the data it needs,
+                rather than inheriting a broad analytics role.
+              </li>
+              <li>
+                <strong>Approval gate</strong> — whether a write the agent initiates requires a human
+                decision before it lands. Shown as n/a for read-only agents.
+              </li>
+              <li>
+                <strong>Passes AG-006</strong> — the hard-blocker check, which needs all three of
+                actions logged, a replayable trail, <em>and</em> a distinct identity. Logging alone is
+                not enough: a logged action under a shared account cannot be traced back to the agent.
+                Any agent failing this caps Agent Readiness and the Agent Readiness Index at 39,
+                whatever the rest of the estate looks like.
+              </li>
+            </ul>
+            <p className="muted mono" style={{ fontSize: "0.76rem", margin: "0.6rem 0 0" }}>
+              read by checks AG-001 … AG-007
+            </p>
+          </section>
+
+          <section className="card table-scroll">
+            <h3 style={{ marginTop: 0 }}>Retrieval corpora behind RAG</h3>
+            <p className="muted" style={{ maxWidth: "88ch" }}>
+              A <strong>corpus</strong> is a document collection indexed for retrieval — the source a
+              RAG assistant quotes from. The RAG Readiness Index scores whether the index is complete,
+              filterable, permission-aware and citable, because an assistant is only as trustworthy as
+              what it retrieves.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Corpus</th>
+                  <th>Source system</th>
+                  <th className="num">Docs indexed</th>
+                  <th>Source ACLs propagate</th>
+                  <th>Filter enforced at retrieval</th>
+                  <th>Holds classified content</th>
+                  <th>Citations enforced</th>
+                  <th>Passes RG-005</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sample.rag_corpora.map((corpus) => {
+                  const permissionAware = corpus.acl_propagated && corpus.retrieval_filter_enforced;
+                  const risky = { color: "var(--severity-critical)", fontWeight: 600 };
+                  return (
+                    <tr key={corpus.name}>
+                      <td className="mono" style={{ fontSize: "0.8rem" }}>
+                        {corpus.name}
+                      </td>
+                      <td className="muted">{corpus.source_system}</td>
+                      <td className="num">
+                        {corpus.indexed_doc_count.toLocaleString()}
+                        <div className="muted" style={{ fontSize: "0.74rem", fontWeight: 400 }}>
+                          of {corpus.authoritative_doc_count.toLocaleString()} authoritative
+                        </div>
+                      </td>
+                      <td style={corpus.acl_propagated ? undefined : risky}>
+                        {yesNo(corpus.acl_propagated)}
+                      </td>
+                      <td style={corpus.retrieval_filter_enforced ? undefined : risky}>
+                        {yesNo(corpus.retrieval_filter_enforced)}
+                      </td>
+                      <td style={corpus.contains_classified && !permissionAware ? risky : undefined}>
+                        {yesNo(corpus.contains_classified)}
+                      </td>
+                      <td>{yesNo(corpus.citation_enforced)}</td>
+                      <td>
+                        <Pill
+                          label={permissionAware ? "pass" : "fail"}
+                          color={permissionAware ? "var(--grade-ready)" : "var(--severity-critical)"}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <ul className="muted" style={{ fontSize: "0.84rem", paddingLeft: "1.1rem", margin: "0.7rem 0 0" }}>
+              <li>
+                <strong>Docs indexed vs authoritative</strong> — how much of the material the business
+                treats as authoritative actually reached the index. The gap is what the assistant
+                cannot see, and it answers anyway.
+              </li>
+              <li>
+                <strong>Source ACLs propagate</strong> — whether the permissions on the original
+                document are carried into the index at all.
+              </li>
+              <li>
+                <strong>Filter enforced at retrieval</strong> — whether those permissions are actually
+                applied to the asking user when the index is queried. Propagating ACLs that nothing
+                enforces protects nobody, which is why both are shown.
+              </li>
+              <li>
+                <strong>Passes RG-005</strong> — the hard-blocker check, which needs both of the
+                above. A corpus that fails it can quote a document back to someone who was never
+                allowed to open it, and caps the RAG Readiness Index at 39.
+              </li>
+              <li>
+                <strong>Citations enforced</strong> — whether every answer must name the documents it
+                came from, which is what makes an answer checkable.
+              </li>
+            </ul>
+            <p className="muted mono" style={{ fontSize: "0.76rem", margin: "0.6rem 0 0" }}>
+              read by checks RG-001 … RG-006
+            </p>
+          </section>
         </>
       ) : (
         <p className="muted">

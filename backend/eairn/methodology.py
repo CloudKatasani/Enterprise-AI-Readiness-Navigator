@@ -261,6 +261,11 @@ def _sample_estate(session: Session, tenant: Tenant) -> dict[str, Any]:
             }
             for s in semantics
         ],
+        # Agent and corpus rows carry every property the hard-blocker checks
+        # read, not a summary of them: AG-006 needs all three of audit,
+        # replayable trail and distinct identity, and RG-005 needs both ACL
+        # propagation and retrieval-time enforcement. Showing one of each pair
+        # would let a blocked estate look clear.
         "agents": [
             {
                 "name": a.name,
@@ -269,6 +274,7 @@ def _sample_estate(session: Session, tenant: Tenant) -> dict[str, Any]:
                 "write_actions": a.write_actions,
                 "write_approval_gate": a.write_approval_gate,
                 "action_audit": a.action_audit,
+                "replayable_trail": a.replayable_trail,
             }
             for a in agents
         ],
@@ -279,6 +285,8 @@ def _sample_estate(session: Session, tenant: Tenant) -> dict[str, Any]:
                 "authoritative_doc_count": c.authoritative_doc_count,
                 "indexed_doc_count": c.indexed_doc_count,
                 "acl_propagated": c.acl_propagated,
+                "retrieval_filter_enforced": c.retrieval_filter_enforced,
+                "contains_classified": c.contains_classified,
                 "citation_enforced": c.citation_enforced,
             }
             for c in corpora
