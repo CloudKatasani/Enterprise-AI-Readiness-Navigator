@@ -128,6 +128,31 @@ carry the snapshot in the path:
 The masthead's Architect and Steward entries list the organisations for that role rather than
 defaulting to one: no view ever shows an estate the reader did not choose.
 
+### Scoring Pillars — the academy page
+
+`/pillars` is the reference for someone new to AI adoption. For each of the eight pillars and both
+overlay indices it sets out:
+
+- **why the pillar exists** and what changes once machines rather than people consume the data;
+- **what goes wrong without it** — concrete failure modes, not abstractions;
+- **what good looks like**;
+- **what you give up by leaving the pillar out of an assessment**, which is a different question
+  from having a weak estate: omit Security and an estate with unprotected classified columns can
+  reach AI-Ready, because the cap that would have held it at 49 no longer exists;
+- **the checks that actually measure it**, with their weights and targets;
+- **references** — the standards, frameworks and papers behind the argument (NIST AI RMF, EU AI Act
+  Art. 10, ISO/IEC 25012 and 42001, OWASP LLM Top 10, MITRE ATLAS, DAMA-DMBOK, and the RAG,
+  text-to-SQL and ML-debt literature).
+
+Each pillar also shows how the assessed organisations on this instance actually spread on it, so the
+argument sits next to real numbers — and where the median lands exactly on a cap value, the page
+says so.
+
+The explanatory content lives in [`pillar_guide_v1.yaml`](backend/eairn/seed/pillar_guide_v1.yaml),
+versioned alongside the rubric it explains. Weights, questions, targets and checks are read from the
+rubric tables and never restated in the guide, so the two cannot disagree; tests assert that every
+rubric pillar and index has teaching content and that every number on the page comes from the rubric.
+
 ### A methodology page that shows its working
 
 `/methodology` is the page to hand a client who asks *"where does this number come from?"*. It works
@@ -199,6 +224,7 @@ service principal.
 | `GET /api/checks`, `GET /api/rubrics/{version}`, `GET /api/playbooks` | The rubric, check library and playbook library as data |
 | `POST /api/assessments` | Run harvest → evaluate → score → recommend → snapshot |
 | `GET /api/portfolio` | Assessed organisations grouped by industry, latest snapshot each |
+| `GET /api/pillars` | The scoring-pillar guide: rubric structure, teaching content, references and the live portfolio spread per pillar |
 | `GET /api/methodology?snapshot=` | The full calculation worked through one snapshot: harvest provenance, per-pillar arithmetic recomputed and reconciled against the engine, caps, indices, confidence tiers and every coverage gap |
 | `GET /api/assessments/{id}/dashboard/{executive\|architect\|steward}` | Role-scoped views |
 | `GET /api/assessments/{id}/evidence`, `GET /api/evidence/{id}` | Evidence drill-through |

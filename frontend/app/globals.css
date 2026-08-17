@@ -589,6 +589,103 @@ a.org-card[aria-current="true"] {
   color: var(--ocean-700);
 }
 
+/* -- scoring pillars (academy) ------------------------------------------- */
+
+.pillar-card {
+  margin-bottom: 1.1rem;
+  scroll-margin-top: 5rem;
+}
+.pillar-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.pillar-headline {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--ocean-700);
+  max-width: 84ch;
+  margin: 0.2rem 0 0.6rem;
+}
+.pillar-card h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  margin: 1.1rem 0 0.4rem;
+}
+.pillar-card ul {
+  padding-left: 1.1rem;
+  margin: 0;
+  max-width: 62ch;
+}
+.pillar-card ul li {
+  margin-bottom: 0.4rem;
+}
+.pillar-card ul.consequence li::marker {
+  color: var(--severity-high);
+}
+.pillar-card ul.good li::marker {
+  color: var(--grade-ready);
+}
+
+.omission {
+  border-left: 4px solid var(--ocean-500);
+  background: color-mix(in srgb, var(--ocean-500) 7%, var(--surface-raised));
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem 0.2rem;
+  margin-top: 1rem;
+}
+.omission h4 {
+  color: var(--ocean-700) !important;
+}
+
+.spread {
+  margin: 0.7rem 0 0.2rem;
+}
+.spread-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  margin-bottom: 0.35rem;
+}
+.spread-range {
+  position: absolute;
+  top: 0;
+  height: 8px;
+  border-radius: 999px;
+  opacity: 0.75;
+}
+.spread-median {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  background: var(--text);
+  border-radius: 1px;
+}
+
+.refs {
+  margin-top: 1.2rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.8rem;
+}
+.refs h4 {
+  margin-top: 0 !important;
+}
+.refs ol {
+  padding-left: 1.2rem;
+  margin: 0;
+}
+.refs li {
+  margin-bottom: 0.5rem;
+  font-size: 0.88rem;
+}
+
 /* -- methodology --------------------------------------------------------- */
 
 .jumplinks {

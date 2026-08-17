@@ -1,0 +1,469 @@
+# Scoring Pillars — the teaching companion to rubric v2.0.
+#
+# The rubric decides what is measured and how much it counts. This file explains
+# *why* each pillar exists, what an estate looks like when it is weak, and what a
+# reader gives up by leaving the pillar out of an assessment. It is data, not
+# code, for the same reason the rubric is: a weighting profile can be forked for
+# an industry or a client without touching the engine, and the explanation
+# travels with it.
+#
+# Rules for editing:
+#   * Every pillar and index key in the rubric must appear here. A test fails if
+#     one is missing, so a new pillar cannot ship without its explanation.
+#   * References must be real, checkable and vendor-neutral. Cite the standard,
+#     the paper or the framework -- not a product page. Omit the URL rather than
+#     guess one; the citation still stands without it.
+version: "1.0"
+rubric_version: "2.0"
+
+intro:
+  title: What a pillar is, and why there are eight
+  body: |
+    A readiness score is not a single opinion. It is eight separate measurements of an
+    estate, each answering one question that an AI programme will run into whether or not
+    anyone planned for it. A pillar groups the checks that answer one of those questions,
+    and carries a weight that says how much it moves the composite.
+
+    The weights are a judgement about consequence, not about effort. Data Quality and
+    Governance carry 20% each because failures there are silent and propagate: a wrong
+    number and an unowned dataset both reach production looking exactly like a right one.
+    Semantic Layer, AI Engineering and Agent Readiness carry 10% each not because they
+    matter less, but because an estate that fails the foundations will fail them anyway —
+    and they are the pillars a team can move fastest once the foundations hold.
+
+    Two of the ten sections here are overlay indices rather than composite pillars. They
+    re-cut the same evidence for one programme — agents, or retrieval — so that programme
+    can be funded on its own evidence instead of on a general average that hides it.
+  reading_order:
+    - Start with Data Quality and Governance. Nothing above them survives their absence.
+    - 'Then Metadata and Security: the pair that decides whether a machine can find data and whether it is allowed to.'
+    - 'Then Semantic Layer and AI Engineering: the pair that decides whether answers are consistent and whether models can be operated.'
+    - Finally Agent Readiness and the two indices, which are mostly a re-reading of everything before them plus a small number of action-safety controls.
+
+pillars:
+  data_quality:
+    headline: A model cannot be more correct than the data it was trained on or retrieves from.
+    why_it_matters: |
+      Data quality is the only pillar whose failures are invisible at the point of use. A
+      stale table returns rows. An incomplete join returns rows. A duplicated customer
+      returns rows. Every downstream consumer — a dashboard, a model, an agent — receives a
+      confident answer, and nothing in the response indicates that it is wrong.
+
+      This is why the pillar measures the *monitoring system* rather than the data itself.
+      EAIRN cannot read customer rows, and it does not need to: an estate that monitors
+      completeness, freshness and validity on its Tier-1 assets, detects breaks before its
+      consumers do, and closes incidents with a named owner is an estate whose quality can
+      be trusted to have been checked. An estate with no monitors is not high quality or low
+      quality — it is unmeasured, which for an AI programme is the same risk as low.
+    ai_impact: |
+      Retrieval and agent workloads amplify quality defects rather than averaging them out.
+      A BI user reading a report sees a trend and notices when it looks wrong. An agent
+      asked "which accounts are past due?" gets a list, acts on it, and has no prior about
+      what the answer should look like. Quality defects that a human would have caught
+      become actions.
+    without_it:
+      - Models train on silently broken data and inherit the break as a learned pattern; the error is then reproduced at inference on data that was never wrong.
+      - Retrieval surfaces stale documents with full confidence, because an index has no concept of "this was true last quarter".
+      - Incidents are discovered by consumers rather than by monitors, so the first person to learn the data is broken is the person who already acted on it.
+      - 'Remediation is unowned: breaks are patched in the consuming query rather than at source, and the same defect reappears in the next pipeline that reads the table.'
+    if_unassessed: |
+      Leaving Data Quality out removes the only pillar that would catch the failure mode
+      most likely to end an AI pilot — an assistant confidently returning a wrong number in
+      front of an executive. Because the remaining weights re-normalise, an estate with no
+      monitoring at all would score *higher* without this pillar than with it, which is
+      exactly backwards. The blind spot is worse than the missing points: nothing else in
+      the rubric asks whether anyone would notice if the data broke.
+    good_looks_like:
+      - Completeness, freshness and validity monitors on every Tier-1 asset, defined as code or configuration rather than clicked into a UI.
+      - Detection ahead of consumer discovery, measured — not asserted.
+      - Incidents with a named owner, an MTTR that is tracked, and a closure that changes the pipeline rather than the symptom.
+      - Alert precision high enough that people still read the alerts.
+    references:
+      - title: "Everyone wants to do the model work, not the data work: Data Cascades in High-Stakes AI"
+        source: "Sambasivan et al., ACM CHI 2021"
+        note: The empirical study of how upstream data problems compound downstream in deployed AI.
+      - title: "Data Validation for Machine Learning"
+        source: "Breck et al., SysML 2019"
+        note: Why validation belongs in the pipeline rather than in a notebook.
+      - title: "ISO/IEC 25012:2008 — Data quality model"
+        source: "ISO/IEC"
+        note: The standard vocabulary for accuracy, completeness, consistency and currentness.
+      - title: "DAMA-DMBOK: Data Management Body of Knowledge, 2nd Edition"
+        source: "DAMA International, 2017"
+        note: Chapter 13 sets out data quality management as an operating discipline.
+
+  governance:
+    headline: Automation multiplies whatever authority structure it finds. Ownership is that structure.
+    why_it_matters: |
+      Governance is the pillar people most often mistake for paperwork. Its checks are not
+      about having a policy document; they are about whether a specific human being is
+      accountable for a specific dataset, whether that accountability was confirmed recently
+      enough to be true, and whether the platform and the catalog agree about what the data
+      is.
+
+      That last one — classification agreement — is the check that most often surprises an
+      organisation. A catalog saying a column is personal data while the platform has no tag
+      on it means the protection everyone believes is in force is not in force. Neither
+      system is lying; nobody ever reconciled them.
+    ai_impact: |
+      An agent cannot ask a human "is this the right table?" at three in the morning. It
+      resolves that question from ownership, certification and curation metadata, or it
+      guesses. Governance is what turns those into machine-readable facts rather than
+      tribal knowledge held by four people who have been there long enough.
+    without_it:
+      - Nobody can approve an AI use case against a dataset, because nobody can say who owns it — so approval defaults to whoever is least likely to say no.
+      - Classification decisions made in the catalog never reach the platform that enforces them, and the gap is discovered during an incident.
+      - 'Certification means nothing: every asset looks equally trustworthy to a machine choosing between them.'
+      - Self-reported maturity drifts from reality, because nothing mechanically contradicts a confident answer on a questionnaire.
+    if_unassessed: |
+      Drop Governance and the assessment can no longer distinguish an estate that is
+      genuinely well run from one that merely has good tooling installed. Every remaining
+      pillar measures a technical property; this is the only one that measures whether a
+      person is answerable for it. It is also the pillar that catches the contradiction
+      between what an organisation says about itself and what its metadata shows — remove it
+      and the questionnaire becomes unfalsifiable.
+    good_looks_like:
+      - Owners on Tier-1 assets, verified within the last twelve months, not inherited from a migration six years ago.
+      - Catalog and platform classifications reconciled mechanically, with disagreements raised as findings.
+      - A certification workflow with measurable throughput, so certification is a process rather than a backlog.
+      - Access reviews that are current, and stewards who respond inside a stated SLA.
+    references:
+      - title: "ISO/IEC 38505-1:2017 — Governance of data"
+        source: "ISO/IEC"
+        note: Accountability model for data as an organisational asset.
+      - title: "Regulation (EU) 2024/1689 (AI Act), Article 10 — Data and data governance"
+        source: "European Union, 2024"
+        url: "https://eur-lex.europa.eu/eli/reg/2024/1689/oj"
+        note: Makes data governance a legal precondition for high-risk AI systems, not a best practice.
+      - title: "ISO/IEC 42001:2023 — AI management systems"
+        source: "ISO/IEC"
+        note: The management-system standard an AI programme is audited against.
+      - title: "Data Mesh: Delivering Data-Driven Value at Scale"
+        source: "Zhamak Dehghani, O'Reilly, 2022"
+        note: Domain ownership as an operating model, and its failure modes.
+
+  metadata:
+    headline: If a machine cannot find the data and cannot tell what it means, nothing downstream works.
+    why_it_matters: |
+      Metadata is the pillar that decides whether an estate is legible. A human analyst
+      compensates for missing descriptions by asking a colleague. A retrieval system or an
+      agent has no colleague: a column called `VAL_2` with no description and no glossary
+      term is, to a machine, indistinguishable from noise.
+
+      Lineage is the second half of the pillar and the more expensive one. Table-level
+      lineage answers "where did this come from"; column-level lineage answers "can I show
+      the user exactly which upstream field produced this number", which is what a citation
+      actually requires — and what makes classification propagate mechanically rather than
+      by hand.
+    ai_impact: |
+      Every claim that an AI system can "explain its answer" resolves, eventually, to
+      lineage plus definitions. Without them an assistant can quote a number but cannot
+      substantiate it, and a reviewer cannot audit it. Description coverage is also the
+      single largest determinant of text-to-SQL accuracy in practice: the model is choosing
+      between columns using their names and descriptions.
+    without_it:
+      - Text-to-SQL and NL query features pick plausible-looking wrong columns, and the answer is wrong in a way that looks right.
+      - Impact analysis is manual, so a schema change ships without anyone knowing which model or report it breaks.
+      - 'Classification cannot propagate along lineage: a column masked at source is exposed in the derived table nobody traced.'
+      - Stale and orphaned assets accumulate, and a machine ranking candidates by recency or popularity keeps rediscovering them.
+    if_unassessed: |
+      Without this pillar an assessment can call an estate ready while its data is
+      effectively unreadable by machines. It also removes the evidence base for two other
+      pillars: Agent Readiness scores discovery and explainability from metadata coverage,
+      and the RAG index leans on the same lineage for citation. Removing Metadata does not
+      just lose 15% of the composite — it hollows out the pillars that read it.
+    good_looks_like:
+      - Descriptions on the large majority of Tier-1 columns, and on essentially all Tier-1 tables, maintained as part of the change process rather than in an annual campaign.
+      - Business glossary terms linked to physical columns, not sitting in a parallel document.
+      - Table-level lineage complete across Tier-1, with column-level lineage resolvable for the assets that feed AI use cases.
+      - Assets under a governed catalog, and stale ones retired rather than left to be found.
+    references:
+      - title: "Datasheets for Datasets"
+        source: "Gebru et al., Communications of the ACM, 2021"
+        url: "https://arxiv.org/abs/1803.09010"
+        note: The case for documenting provenance and intended use as a first-class artefact.
+      - title: "OpenLineage"
+        source: "LF AI & Data Foundation"
+        url: "https://openlineage.io/"
+        note: An open standard for lineage events, useful when lineage must cross vendors.
+      - title: "Spider: A Large-Scale Human-Labeled Dataset for Complex and Cross-Domain Semantic Parsing and Text-to-SQL"
+        source: "Yu et al., EMNLP 2018"
+        url: "https://arxiv.org/abs/1809.08887"
+        note: The benchmark that established how much schema documentation shapes NL-to-SQL accuracy.
+      - title: "Can LLM Already Serve as A Database Interface? (BIRD benchmark)"
+        source: "Li et al., NeurIPS 2023"
+        url: "https://arxiv.org/abs/2305.03111"
+        note: Shows the gap between clean benchmark schemas and real, poorly documented estates.
+
+  security:
+    headline: An agent inherits its identity's access. Least privilege stops being hygiene and becomes containment.
+    why_it_matters: |
+      Security in this rubric is not general information security — the estate presumably has
+      that. It is the specific subset an AI programme changes the risk profile of:
+      classification of sensitive columns, enforcement of protection on the columns that are
+      classified, propagation of that classification along lineage, and the blast radius of
+      the identities involved.
+
+      Protection on classified columns is a hard blocker for a reason. A classified column
+      with no masking, redaction or policy tag is not a gap in a control framework; it is an
+      open disclosure path that the organisation has already documented in its own catalog.
+    ai_impact: |
+      Traditional access control assumes a human at a keyboard whose queries are shaped by
+      what they were asked to do. An assistant with the same credentials will read anything
+      that answers the question, join across domains a person never would, and surface the
+      result in a summary that strips the original context — including the sensitivity
+      markings.
+    without_it:
+      - Personal or regulated data reaches a prompt, a vector index or a fine-tuning set, and cannot be recalled once it is there.
+      - 'Admin fan-out means most controls are advisory: whoever holds the broad role can bypass them, and an agent impersonating that role inherits the same reach.'
+      - Direct-to-user grants accumulate outside the role model, so the access review that looks complete is reviewing the wrong thing.
+      - Without audit retention, an incident cannot be reconstructed, which converts a contained event into an unbounded disclosure notification.
+    if_unassessed: |
+      This is the pillar whose omission is hardest to defend to a regulator or an insurer. It
+      is also the one carrying the assessment's clearest hard blocker: remove it and an
+      estate with unprotected classified columns can reach an AI-Ready grade, because the
+      cap that would have held it at 49 no longer exists. The other pillars have no view of
+      exposure at all.
+    good_looks_like:
+      - Sensitive columns classified — with the name-pattern inferences confirmed by a human rather than trusted blindly.
+      - Every classified column carrying masking, redaction or a policy tag, with no exceptions accumulated as "temporary".
+      - Classification propagating along lineage into derived assets.
+      - Access through scoped roles rather than direct grants, few admin holders, and audit logs retained long enough to reconstruct an incident.
+    references:
+      - title: "OWASP Top 10 for Large Language Model Applications"
+        source: "OWASP GenAI Security Project"
+        url: "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+        note: Prompt injection and sensitive-information disclosure, described as engineering risks.
+      - title: "MITRE ATLAS — Adversarial Threat Landscape for AI Systems"
+        source: "MITRE"
+        url: "https://atlas.mitre.org/"
+        note: Attack techniques observed against deployed AI systems, mapped like ATT&CK.
+      - title: "NIST SP 800-207 — Zero Trust Architecture"
+        source: "NIST, 2020"
+        url: "https://csrc.nist.gov/pubs/sp/800/207/final"
+        note: The identity-centric model that non-human identities have to be fitted into.
+      - title: "NIST SP 800-53 Rev. 5 — Security and Privacy Controls (AC-6, least privilege)"
+        source: "NIST"
+        url: "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final"
+        note: The control catalogue most enterprise policies ultimately reference.
+
+  semantic_layer:
+    headline: Natural-language analytics is only as consistent as the definitions underneath it.
+    why_it_matters: |
+      Ask two teams for "active customers" and you will often get two numbers, both correct
+      under their own definition. A semantic layer is where that argument is settled once and
+      then reused — by dashboards, by APIs and by anything answering questions in natural
+      language.
+
+      The pillar measures whether certified KPIs have exactly one definition, whether the
+      certified models actually cover the traffic people generate, and whether fields carry
+      descriptions and synonyms — because a model mapping "revenue" to a column has to
+      recognise "turnover", "net sales" and "top line" as the same request.
+    ai_impact: |
+      An assistant with no semantic layer re-derives business logic per question, from raw
+      tables, with no memory of how the same question was answered yesterday. It will be
+      confidently inconsistent — and inconsistency, not error, is what destroys trust in an
+      analytics assistant, because every stakeholder can prove it wrong from their own
+      report.
+    without_it:
+      - The same question asked twice returns two different numbers, and both are defensible.
+      - Every AI answer requires a human to verify the business logic, which removes the productivity gain that justified the programme.
+      - KPI definitions fork silently across teams and tools, and reconciling them later is a migration project rather than an edit.
+      - NL acceptance stays low, and the failure is misdiagnosed as a model problem, so the organisation buys a better model instead of defining its metrics.
+    if_unassessed: |
+      Omitting the Semantic Layer makes an assessment structurally over-optimistic about
+      conversational analytics — the use case most organisations attempt first. The
+      technical foundations can all be sound while the estate remains unable to answer a
+      business question the same way twice, and nothing else in the rubric would report it.
+    good_looks_like:
+      - One certified definition per KPI, with duplicates treated as defects rather than as team preferences.
+      - Certified semantic models covering the large majority of actual report traffic, not just the assets someone had time to model.
+      - Field descriptions and synonyms maintained for the vocabulary the business really uses.
+      - NL answer acceptance measured with real users, and tracked as a trend.
+    references:
+      - title: "The Data Warehouse Toolkit, 3rd Edition"
+        source: "Kimball & Ross, Wiley, 2013"
+        note: Conformed dimensions — the original argument for defining a metric once.
+      - title: "Spider / BIRD text-to-SQL benchmarks"
+        source: "Yu et al. 2018; Li et al. 2023"
+        url: "https://arxiv.org/abs/2305.03111"
+        note: Quantify how much accuracy depends on the schema and definitions available to the model.
+      - title: "DAMA-DMBOK, Chapter 12 — Metadata Management"
+        source: "DAMA International, 2017"
+        note: Business glossary and semantic definition as governed artefacts.
+
+  ai_engineering:
+    headline: A model you cannot reproduce is a model you cannot defend, roll back, or improve.
+    why_it_matters: |
+      This pillar measures the operating discipline around models rather than their accuracy.
+      Are production endpoints backed by registered model versions, or by a file somebody
+      exported? Can a model be traced to the data it was trained on? Is promotion to
+      production gated by a human decision that is recorded? Do external model endpoints go
+      through a gateway where they can be logged, rate-limited and revoked?
+
+      None of these make a model better. All of them decide whether the organisation can
+      answer questions about it a year later, when the person who built it has moved on and
+      a regulator, a customer or an incident is asking.
+    ai_impact: |
+      Foundation models shift the work from training to integration, which makes this pillar
+      *more* important, not less: the estate now calls external endpoints, embeds
+      third-party weights in products, and generates content attributable to the company.
+      Ungoverned endpoints are the fastest way to lose track of where data went.
+    without_it:
+      - A production model cannot be reproduced, so a defect cannot be diagnosed and a rollback is a rebuild.
+      - Training-data lineage is unknown, so nobody can answer whether a model saw regulated data, and the honest answer to a regulator becomes "we don't know".
+      - Models reach production without a recorded human decision, and accountability for the deployment is diffuse by construction.
+      - External model calls bypass any gateway, so spend, prompt content and data egress are all unobservable.
+    if_unassessed: |
+      Skipping AI Engineering leaves an assessment measuring only the estate's *inputs*.
+      Data can be clean, governed, documented and secured while the model lifecycle on top
+      of it is untracked — which is precisely the state in which an AI programme passes a
+      readiness review and then fails its first audit.
+    good_looks_like:
+      - Experiment tracking in routine use, not adopted per project.
+      - Every production endpoint backed by a registered, versioned model.
+      - Model-to-training-data lineage recorded at training time rather than reconstructed.
+      - Promotion gated by a human decision with a name attached, and external endpoints reached only through a governed gateway.
+    references:
+      - title: "Hidden Technical Debt in Machine Learning Systems"
+        source: "Sculley et al., NeurIPS 2015"
+        note: Why the model is the small part, and the system around it is where cost accrues.
+      - title: "Model Cards for Model Reporting"
+        source: "Mitchell et al., ACM FAT* 2019"
+        url: "https://arxiv.org/abs/1810.03993"
+        note: A documentation contract for a deployed model.
+      - title: "NIST AI Risk Management Framework (AI RMF 1.0)"
+        source: "NIST AI 100-1, January 2023"
+        url: "https://www.nist.gov/itl/ai-risk-management-framework"
+        note: Govern / Map / Measure / Manage — the lifecycle this pillar operationalises.
+      - title: "ISO/IEC 42001:2023 — AI management systems"
+        source: "ISO/IEC"
+        note: Certifiable management system covering the model lifecycle.
+
+  agent_readiness:
+    headline: The difference between an assistant and an agent is that an agent acts. Everything changes at that line.
+    why_it_matters: |
+      Agent Readiness is partly a re-reading of the other pillars — an agent has to discover
+      data, trust it, and explain it, which is Metadata, Data Quality and lineage — plus a
+      small number of controls that exist only because software now takes actions on its own
+      initiative.
+
+      Those controls are scoped entitlements per agent, approval gates on writes, attributable
+      and replayable action trails, and reconciliation of what an agent can reach through
+      *composition* — the tools it can call, in combination, which is usually more than
+      anyone intended.
+    ai_impact: |
+      An agent operating under a shared service account is indistinguishable from that
+      account's other traffic. Every question afterwards — what did it do, on whose behalf,
+      under what authority, and can we prove it — becomes unanswerable. That is why missing
+      attributable, replayable action trails is a hard blocker that caps this pillar and the
+      Agent Readiness Index at 39 regardless of everything else.
+    without_it:
+      - Agents run under shared identities, so their actions cannot be attributed or revoked individually.
+      - Writes land with no approval gate, and the first person to notice is whoever owns the record that changed.
+      - 'Compositional access goes unreconciled: two individually reasonable tools combine into a path nobody authorised.'
+      - Nothing is replayable, so an incident review can establish that something happened but not why, and the only safe remediation is to switch the agent off.
+    if_unassessed: |
+      Removing Agent Readiness removes the only place the assessment asks whether software is
+      allowed to *act*. Every other pillar is satisfied by an estate that is read-only and
+      well behaved. It also removes the hard blocker on action audit, so an estate whose
+      agents cannot be held to account would score on arithmetic alone — the exact situation
+      the cap exists to prevent.
+    good_looks_like:
+      - Each agent with a distinct identity, scoped to the data its job requires.
+      - Approval gates on any write, sized to the blast radius of the action.
+      - Action trails that are attributable to the agent and replayable against the evidence and approval that produced them.
+      - Runtime-queryable trust signals — freshness, certification, quality — so an agent can decline to answer from an asset it should not trust.
+    references:
+      - title: "NIST AI Risk Management Framework (AI RMF 1.0) and Generative AI Profile"
+        source: "NIST, 2023–2024"
+        url: "https://www.nist.gov/itl/ai-risk-management-framework"
+        note: Risk functions to apply where a system takes autonomous action.
+      - title: "OWASP Top 10 for Large Language Model Applications"
+        source: "OWASP GenAI Security Project"
+        url: "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+        note: Excessive agency and insecure output handling as named, recurring failures.
+      - title: "MITRE ATLAS"
+        source: "MITRE"
+        url: "https://atlas.mitre.org/"
+        note: Documented techniques against AI systems, including abuse of over-broad access.
+      - title: "NIST SP 800-53 Rev. 5 — AU (audit and accountability) and AC (access control) families"
+        source: "NIST"
+        url: "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final"
+        note: The controls an action trail has to satisfy to count as evidence.
+
+  rag_readiness:
+    headline: A retrieval assistant is only as trustworthy as the index behind it — and as safe as its permission model.
+    why_it_matters: |
+      RAG looks like the cheap option: point a model at the documents and ask questions. The
+      pillar measures the four things that decide whether that works — whether authoritative
+      content is actually indexed, whether chunks carry filterable metadata, whether the
+      embeddings are refreshed as fast as the content changes, and whether permissions are
+      enforced at retrieval time.
+
+      It is scored as an overlay index rather than inside the composite so a retrieval
+      programme can be funded, or blocked, on its own evidence without being averaged into
+      an estate-wide number.
+    ai_impact: |
+      Retrieval failures are silent in a specific way: the assistant answers from what it
+      found, not from what exists. A corpus missing half the authoritative material produces
+      confident answers built on the half it has, and no part of the response indicates the
+      omission.
+    without_it:
+      - Documents the business considers authoritative are absent from the index, and the assistant answers anyway from whatever it retrieved.
+      - Chunks carry no owner, date, classification or audience, so retrieval cannot filter and stale or restricted content ranks alongside current, public content.
+      - Embeddings go stale relative to content change, so the index answers about a version of reality that no longer exists.
+      - Source permissions are not enforced at retrieval, and the assistant quotes a document back to someone who was never allowed to open it — a hard blocker that caps the RAG Readiness Index at 39.
+    if_unassessed: |
+      Leaving RAG out means the assessment says nothing about the use case most organisations
+      deploy first and widest. Its risks are also the least like the rest of the estate's:
+      permission-aware retrieval has no analogue in the other pillars, so no other check
+      would catch an index that leaks. The index score would simply be absent — not
+      reassuring, just missing.
+    good_looks_like:
+      - The authoritative corpus indexed and reconciled against its source of record.
+      - Chunk-level metadata — owner, date, classification, audience — good enough to filter on.
+      - Embedding refresh SLA faster than the content change rate, and measured against it.
+      - Source ACLs propagated *and* enforced at retrieval time, with citation enforcement and a groundedness evaluation set in place.
+    references:
+      - title: "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks"
+        source: "Lewis et al., NeurIPS 2020"
+        url: "https://arxiv.org/abs/2005.11401"
+        note: The original RAG formulation.
+      - title: "Retrieval-Augmented Generation for Large Language Models: A Survey"
+        source: "Gao et al., 2023"
+        url: "https://arxiv.org/abs/2312.10997"
+        note: A map of the design space — chunking, indexing, re-ranking, evaluation.
+      - title: "Lost in the Middle: How Language Models Use Long Contexts"
+        source: "Liu et al., TACL 2024"
+        url: "https://arxiv.org/abs/2307.03172"
+        note: Why retrieval precision matters more than retrieval volume.
+      - title: "OWASP Top 10 for Large Language Model Applications"
+        source: "OWASP GenAI Security Project"
+        url: "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+        note: Sensitive-information disclosure through retrieval, described as a first-class risk.
+
+indices:
+  ARI:
+    headline: The same evidence, re-cut for one question — can this estate support agents that act?
+    why_it_matters: |
+      The Agent Readiness Index reads across five dimensions — discover, trust, explain, act
+      safely, audit — using checks that already exist in the pillars. Its value is that it
+      does not average agent-specific weakness into an estate-wide score. An organisation can
+      be AI-Capable overall and Agent-At-Risk, and the two numbers should be able to say so
+      at the same time.
+    if_unassessed: |
+      Without the index, agent risk is diluted: Agent Readiness is 10% of the composite, so
+      an estate can fail it outright and still present a respectable headline grade. The
+      index is what makes that failure visible to the person funding the agent programme.
+  RRI:
+    headline: The same evidence, re-cut for retrieval — is the corpus complete, filterable, fresh and permission-aware?
+    why_it_matters: |
+      The RAG Readiness Index scores content coverage, metadata quality, chunking readiness,
+      vector readiness, security and evaluation as one number for one programme. RAG is
+      usually funded separately, moves faster than the platform beneath it, and fails for
+      reasons the composite would not surface.
+    if_unassessed: |
+      Retrieval readiness has no proxy elsewhere in the rubric. Without this index, a
+      permission-leaking corpus is invisible to the assessment — the RAG pillar sits outside
+      the composite by design, so nothing else would report it.

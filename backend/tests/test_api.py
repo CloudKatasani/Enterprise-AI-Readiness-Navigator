@@ -323,3 +323,80 @@ def test_methodology_sample_carries_every_blocker_property(
     assert sample["rag_corpora"]
     for corpus in sample["rag_corpora"]:
         assert {"acl_propagated", "retrieval_filter_enforced", "contains_classified"} <= set(corpus)
+
+
+def test_pillar_guide_covers_every_pillar_and_index(client: TestClient) -> None:
+    """A new pillar cannot ship without its explanation.
+
+    The guide is teaching material for people adopting AI, so a pillar with no
+    entry would appear on the page as an unexplained weight. This test is the
+    thing that stops that happening.
+    """
+    rubric = client.get("/api/rubrics/2.0").json()
+    guide = client.get("/api/pillars").json()
+
+    assert {p["key"] for p in guide["pillars"]} == {p["key"] for p in rubric["pillars"]}
+    assert {i["key"] for i in guide["indices"]} == set(rubric["indices"])
+
+    for pillar in guide["pillars"]:
+        assert pillar["headline"], pillar["key"]
+        assert pillar["why_it_matters"], pillar["key"]
+        # The question the user asked this page to answer.
+        assert pillar["if_unassessed"], pillar["key"]
+        assert pillar["without_it"] and pillar["good_looks_like"], pillar["key"]
+        assert pillar["references"], pillar["key"]
+
+    for index in guide["indices"]:
+        assert index["headline"] and index["why_it_matters"] and index["if_unassessed"]
+
+
+def test_pillar_guide_takes_its_numbers_from_the_rubric(client: TestClient) -> None:
+    """Explanations are data; weights and targets are not restated in prose.
+
+    If the guide carried its own copy of a weight it would eventually disagree
+    with the engine, and the page would teach arithmetic the product does not
+    perform. Every number below is asserted to come from the rubric tables.
+    """
+    rubric = {p["key"]: p for p in client.get("/api/rubrics/2.0").json()["pillars"]}
+    guide = client.get("/api/pillars").json()
+    checks = {c["check_id"] for c in client.get("/api/checks").json()["checks"]}
+
+    for pillar in guide["pillars"]:
+        source = rubric[pillar["key"]]
+        assert pillar["weight"] == source["weight"]
+        assert pillar["core_question"] == source["core_question"]
+        assert len(pillar["criteria"]) == len(source["criteria"])
+        by_key = {c["key"]: c for c in source["criteria"]}
+        for criterion in pillar["criteria"]:
+            assert criterion["weight"] == by_key[criterion["key"]]["weight"]
+            assert criterion["target"] == by_key[criterion["key"]]["target"]
+            assert criterion["check_id"] in checks
+
+    totals = guide["totals"]
+    assert totals["pillars"] == len(rubric)
+    assert totals["criteria"] == sum(len(p["criteria"]) for p in rubric.values())
+
+
+def test_pillar_guide_references_are_citable(client: TestClient) -> None:
+    """Every reference names a title and a source; any URL is https."""
+    guide = client.get("/api/pillars").json()
+    for pillar in guide["pillars"]:
+        for reference in pillar["references"]:
+            assert reference["title"].strip()
+            assert reference["source"].strip()
+            if reference.get("url"):
+                assert reference["url"].startswith("https://"), reference["url"]
+
+
+def test_pillar_guide_reports_hard_blockers_against_their_scope(client: TestClient) -> None:
+    """A cap belongs to the pillar or index it caps, wherever it is displayed."""
+    guide = client.get("/api/pillars").json()
+    scoped = {
+        **{p["key"]: p["overrides"] for p in guide["pillars"]},
+        **{i["key"]: i["overrides"] for i in guide["indices"]},
+    }
+    assert {o["key"] for o in scoped["security"]} == {"unprotected_classified_columns"}
+    assert {o["key"] for o in scoped["agent_readiness"]} == {"no_agent_action_audit"}
+    assert {o["key"] for o in scoped["ARI"]} == {"no_agent_action_audit_index"}
+    assert {o["key"] for o in scoped["RRI"]} == {"rag_acl_not_enforced"}
+    assert scoped["data_quality"] == []

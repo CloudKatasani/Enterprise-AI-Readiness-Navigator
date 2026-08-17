@@ -10,7 +10,7 @@ one part deferred · **Roadmap** — specified, scheduled per the blueprint's ph
 |---|---|---|---|
 | 1–3 | Executive summary, business problem, vision | Built | The five design principles are enforced mechanically — see README table |
 | 4 | Reference architecture | Built | `docs/architecture.md`; all seven services exist as modules |
-| 5 | Assessment pillars | Built | 8 pillars, 53 criteria in `rubric_v2.0.yaml`; 53 registered checks |
+| 5 | Assessment pillars | Built | 8 pillars, 53 criteria in `rubric_v2.0.yaml`; 53 registered checks. `/pillars` publishes the rationale, failure modes, cost of omission and references for each, from `pillar_guide_v1.yaml` |
 | 6 | Snowflake module | Built | `connectors/snowflake.py` — ACCOUNT_USAGE query catalog, live + fixture modes, one normaliser |
 | 7 | Databricks module | Partial | Permission manifest + system-table catalog published; canonical-bundle harvest works today, live driver is P2 |
 | 8 | Microsoft Fabric module | Partial | Manifest + Admin/Purview API catalog; bundle harvest today, live driver P2 |

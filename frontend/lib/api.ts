@@ -199,6 +199,88 @@ export interface StewardView {
   workload: { pending_review: number; open_findings: number; failing_targets: number };
 }
 
+// -- scoring pillars (academy) ---------------------------------------------- //
+
+export interface PillarReference {
+  title: string;
+  source: string;
+  url?: string;
+  note?: string;
+}
+
+export interface PillarSpread {
+  n: number;
+  min: number;
+  median: number;
+  max: number;
+}
+
+export interface PillarOverride {
+  key: string;
+  check_id: string;
+  condition: string;
+  threshold: number;
+  cap_value: number;
+  rationale: string;
+}
+
+export interface PillarGuideCriterion {
+  key: string;
+  name: string;
+  check_id: string;
+  check_title: string;
+  check_description: string;
+  weight: number;
+  target: number | null;
+  description: string;
+}
+
+export interface PillarGuideEntry {
+  key: string;
+  name: string;
+  weight: number;
+  scoring_mode: string;
+  core_question: string;
+  rubric_rationale: string;
+  criteria: PillarGuideCriterion[];
+  overrides: PillarOverride[];
+  distribution: PillarSpread | null;
+  headline: string;
+  why_it_matters: string;
+  ai_impact: string;
+  without_it: string[];
+  if_unassessed: string;
+  good_looks_like: string[];
+  references: PillarReference[];
+}
+
+export interface PillarGuideIndex {
+  key: string;
+  name: string;
+  dimensions: { key: string; name: string; weight: number; description: string; check_ids: string[] }[];
+  overrides: PillarOverride[];
+  distribution: PillarSpread | null;
+  headline: string;
+  why_it_matters: string;
+  if_unassessed: string;
+}
+
+export interface PillarGuideView {
+  guide_version: string;
+  guide_digest: string;
+  rubric: { version: string; name: string; confidence_threshold: number };
+  intro: { title: string; body: string; reading_order: string[] };
+  pillars: PillarGuideEntry[];
+  indices: PillarGuideIndex[];
+  grade_bands: { scope: string; grade: string; min: number; max: number; interpretation: string }[];
+  totals: {
+    pillars: number;
+    criteria: number;
+    registered_checks: number;
+    assessed_organisations: number;
+  };
+}
+
 // -- methodology ------------------------------------------------------------ //
 
 export interface MethodologyCriterion {
@@ -468,6 +550,8 @@ export const architectView = (snapshotId: string) =>
 
 export const stewardView = (snapshotId: string) =>
   get<StewardView>(`/api/assessments/${snapshotId}/dashboard/steward`);
+
+export const pillarGuide = () => get<PillarGuideView>("/api/pillars");
 
 export const methodology = (snapshotId?: string) =>
   get<MethodologyView>(

@@ -34,6 +34,7 @@ from eairn.dashboard import (
 )
 from eairn.db import get_session
 from eairn.methodology import median_assessment, methodology_view
+from eairn.pillars import pillar_guide
 from eairn.models import (
     AdvisorNarrative,
     Assessment,
@@ -206,6 +207,23 @@ def get_rubric_detail(version: str, session: Session = Depends(get_session)) -> 
 @router.get("/questionnaire", tags=["catalog"])
 def get_questionnaire() -> dict[str, Any]:
     return {"sections": QUESTIONNAIRE}
+
+
+@router.get("/pillars", tags=["catalog"])
+def get_pillar_guide(
+    version: str | None = Query(default=None, description="Rubric version; defaults to the active one"),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Why each pillar exists, what it costs to omit it, and where to read more."""
+    version = version or get_settings().default_rubric_version
+    rubric = get_rubric(session, version)
+    if rubric is None:
+        try:
+            rubric = install_rubric(session, version)
+            session.commit()
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return pillar_guide(session, rubric)
 
 
 @router.get("/methodology", tags=["catalog"])
