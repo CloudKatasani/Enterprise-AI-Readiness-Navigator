@@ -10,7 +10,7 @@ one part deferred · **Roadmap** — specified, scheduled per the blueprint's ph
 |---|---|---|---|
 | 1–3 | Executive summary, business problem, vision | Built | The five design principles are enforced mechanically — see README table |
 | 4 | Reference architecture | Built | `docs/architecture.md`; all seven services exist as modules |
-| 5 | Assessment pillars | Built | 8 pillars, 46 criteria in `rubric_v2.0.yaml`; 46 registered checks |
+| 5 | Assessment pillars | Built | 8 pillars, 53 criteria in `rubric_v2.0.yaml`; 53 registered checks |
 | 6 | Snowflake module | Built | `connectors/snowflake.py` — ACCOUNT_USAGE query catalog, live + fixture modes, one normaliser |
 | 7 | Databricks module | Partial | Permission manifest + system-table catalog published; canonical-bundle harvest works today, live driver is P2 |
 | 8 | Microsoft Fabric module | Partial | Manifest + Admin/Purview API catalog; bundle harvest today, live driver P2 |
@@ -21,7 +21,7 @@ one part deferred · **Roadmap** — specified, scheduled per the blueprint's ph
 | 13 | Scoring framework | Built | `scoring/engine.py`; rubric-as-data, confidence gating, tier weighting, hard-blocker overrides, snapshot hashing |
 | 14 | Agent Readiness Index | Built | `checks/agent.py` (`AG-001`…`AG-007`) + ARI dimensions in the rubric, including compositional entitlement reconciliation |
 | 15 | RAG Readiness Index | Built | `checks/rag.py` (`RG-001`…`RG-006`) + RRI dimensions, with the ACL hard blocker |
-| 16 | Executive dashboard | Partial | Three role-scoped views with full evidence traceability and cohort definitions displayed; the executive view opens on a multi-industry portfolio of assessed estates. PPTX/PDF board-pack export is not built |
+| 16 | Executive dashboard | Partial | Three role-scoped views per estate with full evidence traceability and cohort definitions displayed; the portal opens on a multi-industry portfolio and each estate has its own page. `/methodology` works the whole calculation through one estate's evidence — provenance, per-pillar arithmetic recomputed and reconciled against the engine, caps, indices, confidence tiers, and every coverage gap classified by kind. PPTX/PDF board-pack export is not built |
 | 17 | Claude Code build plan | Built | Build sequence followed: canonical model + rubric → Snowflake reference connector → scoring engine with golden tests → Portal MVP → remaining connectors + recommendation engine + advisor |
 | 18 | Product roadmap | n/a | Phase labels are carried on each connector (`roadmap_phase`) and surfaced in the Portal |
 | 19 | Commercialization | n/a | Rubric-as-data and the canonical-bundle import are the two engineering enablers for partner delivery and white-labelled weighting profiles |

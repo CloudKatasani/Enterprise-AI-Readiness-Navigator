@@ -199,6 +199,202 @@ export interface StewardView {
   workload: { pending_review: number; open_findings: number; failing_targets: number };
 }
 
+// -- methodology ------------------------------------------------------------ //
+
+export interface MethodologyCriterion {
+  key: string;
+  name: string;
+  check_id: string;
+  check_title: string;
+  description: string;
+  check_description: string;
+  target: number | null;
+  weight: number;
+  measured: boolean;
+  score: number | null;
+  contribution: number | null;
+  evidence_count: number;
+  evidence: (EvidenceRecord & { measured: Record<string, unknown>; failing_sample: string[] })[];
+}
+
+export interface MethodologyPillar {
+  key: string;
+  name: string;
+  weight: number;
+  scoring_mode: string;
+  core_question: string;
+  rationale: string;
+  criteria: MethodologyCriterion[];
+  weighted_numerator: number | null;
+  weight_denominator: number | null;
+  criteria_weight_total: number | null;
+  unmeasured_weight_share: number | null;
+  recomputed_raw: number | null;
+  engine_raw: number | null;
+  reconciles: boolean;
+  score: number | null;
+  grade: string | null;
+  capped_by: string | null;
+  cap: Cap | null;
+  contribution_to_composite: number | null;
+  unmeasured_criteria: string[];
+}
+
+export interface GradeBand {
+  grade: string;
+  min: number;
+  max: number;
+  interpretation: string;
+}
+
+export interface MethodologyComposite {
+  terms: { key: string; name: string; score: number; weight: number; contribution: number; capped_by: string | null }[];
+  weighted_numerator: number | null;
+  weight_denominator: number | null;
+  recomputed_raw: number | null;
+  engine_raw: number | null;
+  reconciles: boolean;
+  score: number | null;
+  grade: string | null;
+  capped_by: string | null;
+  cap: Cap | null;
+  bands: GradeBand[];
+}
+
+export interface MethodologyIndex {
+  key: string;
+  name: string;
+  dimensions: {
+    key: string;
+    name: string;
+    weight: number;
+    description: string;
+    check_ids: string[];
+    score: number | null;
+    contribution: number | null;
+  }[];
+  weighted_numerator: number | null;
+  weight_denominator: number | null;
+  recomputed_raw: number | null;
+  engine_raw: number | null;
+  reconciles: boolean;
+  score: number | null;
+  grade: string | null;
+  capped_by: string | null;
+  cap: Cap | null;
+  bands: GradeBand[];
+}
+
+export interface MethodologySample {
+  datasets: {
+    urn: string;
+    name: string;
+    domain: string | null;
+    tier: number;
+    platform: string;
+    owner: string | null;
+    owner_verified: boolean;
+    certified: boolean;
+    curated: boolean;
+    described: boolean;
+    description: string;
+    column_count: number;
+    columns: {
+      name: string;
+      data_type: string;
+      classification: string | null;
+      described: boolean;
+      protected: boolean;
+      protection_kind: string | null;
+    }[];
+  }[];
+  policies: { policy_type: string; name: string; platform: string; bound_to_tag: string | null; target_count: number; targets: string[] }[];
+  grants: { grantee: string; grantee_type: string; privilege: string; object_urn: string; is_admin_role: boolean }[];
+  dq_monitors: { dataset_urn: string; tool: string; check_type: string; defined_as_data: boolean; enabled: boolean; pass_rate: number | null }[];
+  ml_assets: { name: string; kind: string; registered: boolean; training_data_lineage: boolean; promotion_gated: boolean }[];
+  semantic_models: { name: string; platform: string; certified: boolean; field_count: number; described_field_count: number }[];
+  agents: { name: string; identity_kind: string; scoped_roles: boolean; write_actions: boolean; write_approval_gate: boolean; action_audit: boolean }[];
+  rag_corpora: { name: string; source_system: string; authoritative_doc_count: number; indexed_doc_count: number; acl_propagated: boolean; citation_enforced: boolean }[];
+}
+
+export interface MethodologyView {
+  default_snapshot: string;
+  requested_snapshot: string | null;
+  assessment: AssessmentSummary;
+  industry: string | null;
+  industry_label: string | null;
+  size_band: string | null;
+  rubric: {
+    version: string;
+    name: string;
+    confidence_threshold: number;
+    source_digest: string;
+    index_names: Record<string, string>;
+  };
+  provenance: {
+    connectors: {
+      connector: string;
+      config: Record<string, any>;
+      capabilities: string[];
+      warnings: string[];
+      counts: Record<string, number>;
+    }[];
+    sample_matches_snapshot: boolean;
+    sample: MethodologySample | null;
+  };
+  evidence_totals: {
+    records: number;
+    accepted: number;
+    pending_review: number;
+    rejected: number;
+    checks_with_evidence: number;
+    registered_checks: number;
+    context_records: number;
+    failing_targets: number;
+  };
+  pillars: MethodologyPillar[];
+  composite: MethodologyComposite;
+  indices: MethodologyIndex[];
+  overrides: {
+    key: string;
+    check_id: string;
+    condition: string;
+    threshold: number;
+    cap_scope: string;
+    cap_value: number;
+    rationale: string;
+    fired: boolean;
+    applied: boolean;
+    failing_targets: number | null;
+  }[];
+  confidence: {
+    threshold: number;
+    tiers: { key: string; value: number; label: string; meaning: string; example: string; scored: boolean }[];
+  };
+  coverage: {
+    unmeasured_criteria: {
+      key: string;
+      name: string;
+      pillar: string;
+      pillar_key?: string;
+      check_id: string;
+      weight?: number;
+      missing_capabilities?: string[];
+      status?: "missing_capability" | "held_for_review" | "nothing_to_measure";
+      evidence_records?: number;
+      why: string;
+    }[];
+    checks_skipped: { check_id: string; title: string; pillar_key: string; requires: string[]; missing_capabilities: string[] }[];
+    pending_review: EvidenceRecord[];
+    capabilities_present: string[];
+    capabilities_absent: string[];
+    never_collected: { item: string; why: string }[];
+    composite_weight_unmeasured: number;
+    by_pillar: { key: string; name: string; unmeasured_weight_share: number; unmeasured_criteria: string[] }[];
+  };
+  settings: { row_sampling_enabled: boolean };
+}
+
 export interface ConnectorDescriptor {
   key: string;
   platform: string;
@@ -255,6 +451,11 @@ export const architectView = (snapshotId: string) =>
 
 export const stewardView = (snapshotId: string) =>
   get<StewardView>(`/api/assessments/${snapshotId}/dashboard/steward`);
+
+export const methodology = (snapshotId?: string) =>
+  get<MethodologyView>(
+    snapshotId ? `/api/methodology?snapshot=${encodeURIComponent(snapshotId)}` : "/api/methodology",
+  );
 
 export const connectors = () =>
   get<{ connectors: ConnectorDescriptor[] }>("/api/connectors").then((r) => r.connectors);

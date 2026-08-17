@@ -223,3 +223,80 @@ def test_indices_use_their_full_names(client: TestClient, demo_snapshot: str) ->
     assert labels["RRI"] == "RAG Readiness Index"
     assert labels["composite"] == "Composite readiness"
     assert labels["data_quality"] == "Data Quality"
+
+
+def test_methodology_shows_its_own_arithmetic(client: TestClient, demo_snapshot: str) -> None:
+    """The methodology view must reproduce every weighted mean it explains.
+
+    It recomputes each pillar, the composite and both indices from the stored
+    score lines. If any of those disagreed with the engine, the page would be
+    teaching arithmetic the product does not actually perform.
+    """
+    view = client.get("/api/methodology", params={"snapshot": demo_snapshot}).json()
+    assert view["assessment"]["snapshot_id"] == demo_snapshot
+
+    scoring_pillars = [p for p in view["pillars"] if p["score"] is not None]
+    assert len(scoring_pillars) == 8
+    for pillar in scoring_pillars:
+        assert pillar["reconciles"], f"{pillar['key']} does not reconcile with the engine"
+        assert pillar["criteria"]
+        measured = [c for c in pillar["criteria"] if c["measured"]]
+        assert measured, f"{pillar['key']} has no measured criterion"
+        # Every measured criterion carries the evidence that produced it.
+        assert all(c["evidence"] for c in measured)
+
+    assert view["composite"]["reconciles"]
+    # The view rounds for display; it must still be the same number.
+    assert view["composite"]["score"] == pytest.approx(
+        view["assessment"]["composite_score"], abs=0.01
+    )
+    assert {i["key"] for i in view["indices"]} == {"ARI", "RRI"}
+    assert all(index["reconciles"] for index in view["indices"])
+
+
+def test_methodology_separates_the_kinds_of_missing(
+    client: TestClient, demo_snapshot: str
+) -> None:
+    """A gap the connector cannot see is not a gap awaiting a reviewer."""
+    view = client.get("/api/methodology", params={"snapshot": demo_snapshot}).json()
+    coverage = view["coverage"]
+    assert {c["status"] for c in coverage["unmeasured_criteria"]} <= {
+        "missing_capability",
+        "held_for_review",
+        "nothing_to_measure",
+    }
+    for criterion in coverage["unmeasured_criteria"]:
+        assert criterion["why"]
+        if criterion["status"] == "missing_capability":
+            assert criterion["missing_capabilities"]
+        if criterion["status"] == "held_for_review":
+            assert criterion["evidence_records"] > 0
+
+    # Pending-review evidence is reported, never silently folded into a score.
+    pending = {e["check_id"] for e in coverage["pending_review"]}
+    held = {c["check_id"] for c in coverage["unmeasured_criteria"] if c["status"] == "held_for_review"}
+    assert held <= pending
+    assert coverage["never_collected"]
+    assert view["settings"]["row_sampling_enabled"] is False
+
+
+def test_methodology_publishes_synthetic_provenance(
+    client: TestClient, demo_snapshot: str
+) -> None:
+    """A reader must be able to tell a synthetic estate from a real harvest."""
+    view = client.get("/api/methodology", params={"snapshot": demo_snapshot}).json()
+    connector = view["provenance"]["connectors"][0]
+    assert connector["connector"] == "demo"
+    assert connector["config"]["synthetic"] is True
+    assert connector["config"]["industry"] and connector["config"]["maturity"]
+    assert connector["config"]["seed"]
+    assert connector["counts"]["datasets"] > 0
+    # Provenance is disclosure, not a credential dump.
+    assert not {"password", "token", "secret", "user", "account"} & set(connector["config"])
+
+
+def test_methodology_defaults_to_an_estate_without_a_snapshot(client: TestClient, demo_snapshot: str) -> None:
+    view = client.get("/api/methodology").json()
+    assert view["default_snapshot"]
+    assert view["requested_snapshot"] is None
+    assert view["pillars"]

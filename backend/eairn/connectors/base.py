@@ -253,6 +253,16 @@ class Connector(ABC):
         """Cheap configuration validation; returns human-readable problems."""
         return []
 
+    def config_summary(self) -> dict[str, Any]:
+        """Non-secret provenance recorded on the harvest run.
+
+        This is persisted and shown to the customer, so a connector must return
+        only settings that explain *how the estate was read* -- never an
+        account, a user, a token or any other credential. The default is empty:
+        a connector opts in to disclosing something.
+        """
+        return {}
+
     def describe(self) -> dict[str, Any]:
         return {
             "key": self.key,

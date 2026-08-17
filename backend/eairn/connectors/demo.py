@@ -143,6 +143,30 @@ class DemoConnector(Connector):
     def email_domain(self) -> str:
         return self.config.get("email_domain", "example.com")
 
+    def config_summary(self) -> dict:
+        """Everything needed to regenerate this estate byte-for-byte.
+
+        Recorded on the harvest run and published in the methodology view: a
+        reader is entitled to know that these numbers came from a synthetic
+        estate, which profiles shaped it, and which seed reproduces it.
+        """
+        industry, maturity = self.industry, self.maturity
+        return {
+            "synthetic": True,
+            "industry": industry.key,
+            "industry_label": industry.label,
+            "maturity": maturity.key,
+            "maturity_label": maturity.label,
+            "platform": self.estate_platform,
+            "seed": self.config.get("seed", SEED),
+            "harvest_anchor": HARVEST_ANCHOR.isoformat(),
+            "domains": [
+                {"schema": schema, "domain": domain, "base_tier": tier}
+                for schema, domain, tier in industry.domains
+            ],
+            "sensitive_domains": list(industry.sensitive_domains),
+        }
+
     def harvest(self) -> HarvestBundle:
         industry, maturity = self.industry, self.maturity
         rng = random.Random(self.config.get("seed", SEED))

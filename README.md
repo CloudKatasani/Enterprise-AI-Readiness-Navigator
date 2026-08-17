@@ -84,7 +84,7 @@ AI Engineering (10%) · Agent Readiness (10%), plus the **Agent Readiness Index*
 Index** scored as separate overlays so an agent or RAG programme can be funded on its own evidence.
 (`ARI` and `RRI` remain the machine-readable keys; the Portal always shows the full names.)
 
-Forty-six automated checks produce the evidence. Each declares the connector capabilities it needs;
+Fifty-three automated checks produce the evidence. Each declares the connector capabilities it needs;
 a check whose evidence source is unavailable is reported as **not measured**, never scored as zero.
 
 ### Hard blockers that actually bind
@@ -126,6 +126,30 @@ three role views sit behind tabs that always carry the snapshot in the path:
 
 The masthead's Architect and Steward entries list the estates for that role rather than defaulting to
 one: no view ever shows an estate the reader did not choose.
+
+### A methodology page that shows its working
+
+`/methodology` is the page to hand a client who asks *"where does this number come from?"*. It works
+the entire calculation through one estate's own evidence:
+
+1. **The sample data** — the harvest the score was computed from, down to sample datasets, columns,
+   policies, grants, agents and corpora. For the demo portfolio it states plainly that the estate is
+   synthetic, names the industry and maturity profiles that shaped it and the seed that reproduces
+   it, and says what changes in a real assessment (the connector, and nothing else).
+2. **One check → one evidence record** — a single check narrated field by field: what was counted,
+   the division that produced the result, the confidence tier, and the objects that failed.
+3. **Criteria → pillar score** — every pillar's full criterion table with `score × weight`, the
+   weighted mean, and the cap if one binds.
+4. **Pillars → composite** — the same arithmetic one level up, with the grade band it lands in.
+5. **Hard blockers**, **the two overlay indices**, and **the confidence tiers** that decide what is
+   allowed to count at all.
+6. **What is missing** — the criteria that produced no score, kept apart by *kind*: the connector
+   could not observe it, the evidence is waiting on a reviewer, or the estate contains nothing of
+   that kind. Plus what EAIRN never collects under any configuration.
+
+Every weighted mean on that page is **recomputed in the view** from the stored score lines and
+compared with what the Scoring Engine wrote; each one is labelled with whether it reconciles, and a
+test asserts that all of them do.
 
 ---
 
@@ -174,6 +198,7 @@ service principal.
 | `GET /api/checks`, `GET /api/rubrics/{version}`, `GET /api/playbooks` | The rubric, check library and playbook library as data |
 | `POST /api/assessments` | Run harvest → evaluate → score → recommend → snapshot |
 | `GET /api/portfolio` | Assessed organisations grouped by industry, latest snapshot each |
+| `GET /api/methodology?snapshot=` | The full calculation worked through one snapshot: harvest provenance, per-pillar arithmetic recomputed and reconciled against the engine, caps, indices, confidence tiers and every coverage gap |
 | `GET /api/assessments/{id}/dashboard/{executive\|architect\|steward}` | Role-scoped views |
 | `GET /api/assessments/{id}/evidence`, `GET /api/evidence/{id}` | Evidence drill-through |
 | `POST /api/evidence/{id}/review` | Accept/reject a low-confidence finding, then re-score |

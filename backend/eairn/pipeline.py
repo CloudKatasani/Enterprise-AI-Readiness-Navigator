@@ -97,7 +97,13 @@ def harvest_connector(session: Session, tenant: Tenant, connector_key: str, conf
     persist_bundle(session, tenant, run, bundle)
     run.status = "complete"
     run.finished_at = datetime.now(timezone.utc)
-    run.stats = {**bundle.stats(), "capabilities": sorted(bundle.capabilities), "warnings": bundle.warnings}
+    run.stats = {
+        **bundle.stats(),
+        "capabilities": sorted(bundle.capabilities),
+        "warnings": bundle.warnings,
+        # Non-secret provenance only -- see Connector.config_summary.
+        "config": connector.config_summary(),
+    }
     session.flush()
     return run
 

@@ -33,6 +33,7 @@ from eairn.dashboard import (
     steward_view,
 )
 from eairn.db import get_session
+from eairn.methodology import median_assessment, methodology_view
 from eairn.models import (
     AdvisorNarrative,
     Assessment,
@@ -205,6 +206,27 @@ def get_rubric_detail(version: str, session: Session = Depends(get_session)) -> 
 @router.get("/questionnaire", tags=["catalog"])
 def get_questionnaire() -> dict[str, Any]:
     return {"sections": QUESTIONNAIRE}
+
+
+@router.get("/methodology", tags=["catalog"])
+def get_methodology(
+    snapshot: str | None = Query(default=None, description="Worked example; defaults to the median estate"),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """How a score is produced, worked through one snapshot's own evidence."""
+    assessment = _assessment(session, snapshot) if snapshot else median_assessment(session)
+    if assessment is None:
+        raise HTTPException(status_code=404, detail="no completed assessment to explain")
+    rubric = get_rubric(session, assessment.rubric_version)
+    if rubric is None:
+        raise HTTPException(
+            status_code=409, detail=f"rubric {assessment.rubric_version} is not installed"
+        )
+    return {
+        "default_snapshot": assessment.snapshot_id,
+        "requested_snapshot": snapshot,
+        **methodology_view(session, assessment, rubric),
+    }
 
 
 # --------------------------------------------------------------------------- #
