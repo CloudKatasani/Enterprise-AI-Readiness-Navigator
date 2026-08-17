@@ -76,6 +76,10 @@ def install_rubric(session: Session, version: str, *, replace: bool = False) -> 
         name=spec.get("name", f"Rubric {version}"),
         confidence_threshold=float(spec.get("confidence_threshold", 0.80)),
         source_digest=source_digest,
+        index_names={
+            index_key: index_spec.get("name", index_key)
+            for index_key, index_spec in (spec.get("indices") or {}).items()
+        },
     )
     session.add(rubric)
     session.flush()

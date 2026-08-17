@@ -431,3 +431,88 @@ details.evidence ul {
   max-height: 220px;
   overflow-y: auto;
 }
+
+/* ------------------------------------------------------------ portfolio -- */
+
+.industry {
+  margin-bottom: 1.4rem;
+}
+.industry-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.industry-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.org-grid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+}
+
+a.org-card {
+  display: block;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--org-accent, var(--border));
+  border-radius: var(--radius);
+  padding: 0.8rem 0.95rem;
+  color: inherit;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+a.org-card:hover {
+  text-decoration: none;
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+a.org-card[aria-current="true"] {
+  outline: 2px solid var(--ocean-500);
+  outline-offset: 1px;
+}
+.org-card .org-name {
+  font-weight: 650;
+  font-size: 0.94rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.org-card .org-score {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--org-accent);
+}
+.org-card .org-grade {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--org-accent);
+}
+.org-card .org-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.6rem;
+}
+.org-card .org-blockers {
+  color: var(--severity-critical);
+  font-weight: 600;
+}
+
+.selected-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+}
+.selected-strip a {
+  font-size: 0.84rem;
+}

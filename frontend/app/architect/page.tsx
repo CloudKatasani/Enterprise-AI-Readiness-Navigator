@@ -1,5 +1,6 @@
 import { ApiDownNotice, EvidenceItem, NoSnapshotNotice, gradeColor } from "@/components/ui";
-import { ApiUnavailable, architectView, latestSnapshotId } from "@/lib/api";
+import Link from "next/link";
+import { ApiUnavailable, architectView, resolveSelection } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -54,17 +55,22 @@ function Heatmap({
   );
 }
 
-export default async function ArchitectPage() {
-  let snapshotId: string | null;
+export default async function ArchitectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ snapshot?: string }>;
+}) {
+  let selection;
   try {
-    snapshotId = await latestSnapshotId();
+    selection = await resolveSelection((await searchParams).snapshot);
   } catch (error) {
     if (error instanceof ApiUnavailable) return <ApiDownNotice detail={error.message} />;
     throw error;
   }
-  if (!snapshotId) return <NoSnapshotNotice />;
+  if (!selection) return <NoSnapshotNotice />;
 
-  const view = await architectView(snapshotId);
+  const { org } = selection;
+  const view = await architectView(org.snapshot_id);
   const byPillar = new Map<string, typeof view.criteria>();
   for (const criterion of view.criteria) {
     const key = criterion.parent_key ?? "other";
@@ -78,6 +84,12 @@ export default async function ArchitectPage() {
     <>
       <div className="eyebrow">Architect view</div>
       <h1>Pillar heatmap and evidence drill-through</h1>
+      <div className="selected-strip">
+        <span className="muted">
+          {org.tenant} · {org.grade} · composite {org.composite_score?.toFixed(1)}
+        </span>
+        <Link href={`/?snapshot=${org.snapshot_id}`}>← Executive view</Link>
+      </div>
       <p className="lede">
         Every criterion below expands to the evidence records that produced it — check, target,
         result, confidence and rationale. Criteria with no evidence are reported as unmeasured, never

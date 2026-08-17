@@ -33,7 +33,7 @@ is built and what is on the roadmap.
 # 1. Backend — API, scoring engine, connectors
 cd backend
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m eairn.seed.bootstrap          # deterministic demo estate + one snapshot
+.venv/bin/python -m eairn.seed.bootstrap          # 13 demo estates across 6 industries
 .venv/bin/uvicorn eairn.main:app --port 8000      # OpenAPI docs at /docs
 
 # 2. Portal — role-scoped views over the snapshot
@@ -42,17 +42,24 @@ npm install
 npm run dev                                       # http://localhost:3000
 ```
 
-The bootstrap prints the snapshot it produced:
+The bootstrap seeds a portfolio of sample estates — six industries, four maturity profiles, each
+scored from its own evidence:
 
 ```
-tenant           : Northwind Financial (northwind)
-snapshot         : snap_cccc9c8c6ff900e2
-composite        : 59.5 (AI-Emerging)
-ARI              : 57.6 (Agent-Emerging)
-RRI              : 39.0 (RAG-At-Risk)
-caps applied     : ['no_agent_action_audit', 'unprotected_classified_columns', 'rag_acl_not_enforced']
-snapshot hash    : 5ec29962936d3ede...
+Organisation                 Industry               Composite  Grade           ARI   RRI
+----------------------------------------------------------------------------------------
+Northwind Financial          financial_services          58.5  AI-Emerging    39.0  39.0
+Calder & Voss Capital        financial_services          84.3  AI-Ready       95.2  94.4
+Basalt Mutual                financial_services          36.2  AI-At-Risk     16.8  28.3
+Meridian Telecom             telecommunications          74.6  AI-Capable     79.5  84.2
+Harborline Retail Group      retail                      60.0  AI-Capable     39.0  39.0
+Anvil Grid Utilities         utilities                   32.9  AI-At-Risk     15.0  28.3
+Loftware Technologies        technology                  84.8  AI-Ready       95.0  94.4
+Silverpine Health System     healthcare                  73.9  AI-Capable     79.5  84.2
+...
 ```
+
+Seed one estate on its own with `--only <key>` (for example `--only anvil-grid`).
 
 Run the tests with `cd backend && .venv/bin/python -m pytest`.
 
@@ -60,12 +67,22 @@ Run the tests with `cd backend && .venv/bin/python -m pytest`.
 
 ## What it does
 
+### Sample estates across six industries
+
+The demo connector generates deterministic estates along two independent axes. **Industry**
+(financial services, telecommunications, retail, utilities, technology, healthcare) decides the
+business domains, the dominant platform and where regulated data concentrates — a utility's crown
+jewels sit in metering and outage data, a telco's in subscriber and roaming records. **Maturity**
+(leading, advancing, emerging, at-risk) decides the coverage a governance programme has actually
+achieved. Neither sets a score: they set estate facts, and the check library measures whatever those
+facts support.
+
 ### Eight scored pillars, plus two overlay indices
 
 Data Quality (20%) · Governance (20%) · Metadata (15%) · Security (15%) · Semantic Layer (10%) ·
-AI Engineering (10%) · Agent Readiness (10%), plus the **Agent Readiness Index (ARI)** and **RAG
-Readiness Index (RRI)** scored as separate overlays so an agent or RAG programme can be funded on its
-own evidence.
+AI Engineering (10%) · Agent Readiness (10%), plus the **Agent Readiness Index** and **RAG Readiness
+Index** scored as separate overlays so an agent or RAG programme can be funded on its own evidence.
+(`ARI` and `RRI` remain the machine-readable keys; the Portal always shows the full names.)
 
 Forty-six automated checks produce the evidence. Each declares the connector capabilities it needs;
 a check whose evidence source is unavailable is reported as **not measured**, never scored as zero.
@@ -76,9 +93,13 @@ Some findings cap a score regardless of arithmetic, and the caps are rubric data
 
 - classified columns with no masking, redaction or policy tag → **Security capped at 49**
 - agent actions that are not attributable and replayable → **Agent Readiness capped at 39**
-- classified content in a vector index with no retrieval-time filtering → **RRI capped at 39**
+- classified content in a vector index with no retrieval-time filtering → **RAG Readiness Index
+  capped at 39**
 
 The executive view leads with these, because clearing them is the shortest path to a better grade.
+A blocker is reported whenever its condition fires, including when the estate already scores below
+the cap and there is nothing left to lower — "no cap applied" is not "no blocker", and hiding it
+would flatter the weakest estates.
 
 ### A roadmap ordered by simulation, not opinion
 
@@ -89,8 +110,10 @@ effort day. `POST /api/assessments/{id}/simulate` exposes the same what-if to an
 
 ### Three role-scoped views
 
-- **Executive** — composite and grade, trend, peer percentile with the cohort definition alongside it,
-  hard blockers, top-5 risks, and the roadmap with investment vs projected score.
+- **Executive** — opens on the portfolio: every assessed organisation grouped by industry, each card
+  showing composite, grade, Agent Readiness Index, RAG Readiness Index and blocker count. Selecting
+  one shows its grade and trend, peer percentile with the cohort definition alongside it, hard
+  blockers, top-5 risks, and the roadmap with investment vs projected score.
 - **Architect** — pillar heatmap by platform and business domain, with drill-through from any score to
   the evidence records behind it.
 - **Steward** — the low-confidence review queue, the findings queue with the exact failing objects, and
@@ -142,6 +165,7 @@ service principal.
 | `GET /api/connectors` | Connector catalog with the permission manifest published to the customer |
 | `GET /api/checks`, `GET /api/rubrics/{version}`, `GET /api/playbooks` | The rubric, check library and playbook library as data |
 | `POST /api/assessments` | Run harvest → evaluate → score → recommend → snapshot |
+| `GET /api/portfolio` | Assessed organisations grouped by industry, latest snapshot each |
 | `GET /api/assessments/{id}/dashboard/{executive\|architect\|steward}` | Role-scoped views |
 | `GET /api/assessments/{id}/evidence`, `GET /api/evidence/{id}` | Evidence drill-through |
 | `POST /api/evidence/{id}/review` | Accept/reject a low-confidence finding, then re-score |

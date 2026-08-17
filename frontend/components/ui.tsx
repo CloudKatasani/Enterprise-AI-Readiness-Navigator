@@ -1,4 +1,5 @@
-import type { Benchmark, Cap, EvidenceRecord, ScoreLine } from "@/lib/api";
+import Link from "next/link";
+import type { Benchmark, Cap, EvidenceRecord, PortfolioIndustry, PortfolioOrg, ScoreLine } from "@/lib/api";
 
 export function gradeColor(score: number | null | undefined): string {
   if (score == null) return "var(--severity-info)";
@@ -94,15 +95,20 @@ export function PillarBar({ score, benchmark }: { score: ScoreLine; benchmark?: 
 }
 
 export function CapBanner({ cap }: { cap: Cap }) {
+  const binding = cap.applied !== false;
   return (
-    <div className="banner">
+    <div className="banner" style={binding ? undefined : { opacity: 0.82 }}>
       <h3>
-        Hard blocker · {cap.scope} capped at {cap.cap_value}
+        Hard blocker · {cap.scope}{" "}
+        {binding
+          ? `capped at ${cap.cap_value}`
+          : `already scoring below the ${cap.cap_value} cap`}
       </h3>
       <p style={{ margin: "0 0 0.4rem" }}>{cap.rationale}</p>
       <div className="muted mono">
         {cap.check_id} · {cap.failing_targets} failing target(s) · arithmetic score{" "}
         {cap.uncapped_score.toFixed(1)} · override {cap.override}
+        {binding ? "" : " · no cap applied, the finding still blocks the programme"}
       </div>
     </div>
   );
@@ -143,10 +149,78 @@ export function EvidenceItem({ record }: { record: EvidenceRecord }) {
   );
 }
 
+/** One assessed organisation in the portfolio. */
+export function OrgCard({ org, selected }: { org: PortfolioOrg; selected: boolean }) {
+  const accent = gradeColor(org.composite_score);
+  return (
+    <Link
+      href={`/?snapshot=${org.snapshot_id}`}
+      className="org-card"
+      aria-current={selected}
+      style={{ "--org-accent": accent } as React.CSSProperties}
+    >
+      <div className="org-name">
+        <span>{org.tenant}</span>
+        <span className="org-score">{org.composite_score?.toFixed(1) ?? "--"}</span>
+      </div>
+      <div className="org-grade">{org.grade ?? "unscored"}</div>
+      <div className="org-meta">
+        <span>Agent Readiness Index {org.ari_score?.toFixed(0) ?? "--"}</span>
+        <span>RAG Readiness Index {org.rri_score?.toFixed(0) ?? "--"}</span>
+        <span>{org.size_band.replace(/_/g, " ")}</span>
+        {org.hard_blockers > 0 ? (
+          <span className="org-blockers">
+            {org.hard_blockers} hard blocker{org.hard_blockers === 1 ? "" : "s"}
+            {org.hard_blockers_binding === 0 ? " (score already below caps)" : ""}
+          </span>
+        ) : (
+          <span>no hard blockers</span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+/** The portfolio: assessed organisations grouped by industry. */
+export function Portfolio({
+  industries,
+  selectedSnapshot,
+}: {
+  industries: PortfolioIndustry[];
+  selectedSnapshot: string;
+}) {
+  return (
+    <>
+      {industries.map((industry) => (
+        <div className="industry" key={industry.industry}>
+          <div className="industry-head">
+            <h3>{industry.industry_label}</h3>
+            <span className="muted" style={{ fontSize: "0.8rem" }}>
+              {industry.organisations.length} assessed
+              {industry.median_composite != null
+                ? ` · median composite ${industry.median_composite.toFixed(1)}`
+                : ""}
+            </span>
+          </div>
+          <div className="org-grid">
+            {industry.organisations.map((org) => (
+              <OrgCard
+                key={org.snapshot_id}
+                org={org}
+                selected={org.snapshot_id === selectedSnapshot}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function BenchmarkRow({ benchmark }: { benchmark: Benchmark }) {
   return (
     <tr>
-      <td>{benchmark.metric_key}</td>
+      <td>{benchmark.label ?? benchmark.metric_key}</td>
       <td className="num">{benchmark.score.toFixed(1)}</td>
       <td className="num">p{benchmark.percentile.toFixed(0)}</td>
       <td className="num muted">

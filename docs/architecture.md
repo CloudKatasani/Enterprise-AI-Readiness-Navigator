@@ -59,7 +59,8 @@ criterion score  = aggregate of accepted evidence for its check_id
                    (weighted by measurement size when a check emits several records)
 pillar score     = Σ(criterion × weight) / Σ(weight)   → then hard-blocker caps
 composite        = Σ(pillar × weight) / Σ(weight)      → then composite-scope caps
-index (ARI/RRI)  = Σ(dimension × weight) / Σ(weight)   → then index-scope caps
+index            = Σ(dimension × weight) / Σ(weight)   → then index-scope caps
+                   (Agent Readiness Index, RAG Readiness Index; keyed ARI/RRI)
 ```
 
 Three rules the engine enforces regardless of rubric content:
@@ -78,6 +79,18 @@ Three rules the engine enforces regardless of rubric content:
 An override names a check, a condition, a scope and a cap value, and carries its own rationale — all
 rubric data. When it triggers, the score row records both the capped value and the arithmetic value,
 so the executive view can show what the estate *would* score once the blocker clears.
+
+The engine records every override whose condition fires (`blockers_triggered`), and separately those
+that actually lowered a score (`caps_applied`, and `applied: true` on the entry). The distinction
+matters at the bottom of the range: an estate already scoring below a cap has nothing left to cap,
+but the blocking finding is still there. Reporting only applied caps would show the weakest estates
+as having no blockers at all.
+
+### Index display names
+
+`ARI` and `RRI` are keys. Their display names — Agent Readiness Index, RAG Readiness Index — are
+rubric data (`indices.<key>.name`), stored on the rubric row and used for score names and benchmark
+labels, so a forked rubric can rename an index without an engine change.
 
 ### Reproducibility
 
@@ -131,6 +144,10 @@ white-label a weighting profile without forking the engine.
 
 **A new connector:** subclass `Connector`, declare capabilities and the permission manifest, publish
 the query or API catalog, and register it. Bundle-backed connectors get canonical-import for free.
+
+**A new sample estate:** add an `IndustryProfile` (domains, sensitive domains, table naming, agent and
+KPI names) or a `MaturityProfile` (coverage dials) to `connectors/profiles.py`, then list the
+organisation in `seed/bootstrap.py`. Profiles set estate facts only — a profile cannot set a grade.
 
 **A new playbook:** add an entry to `playbooks.yaml` naming the check it fixes, its target, horizon and
 effort. The engine simulates its impact automatically.

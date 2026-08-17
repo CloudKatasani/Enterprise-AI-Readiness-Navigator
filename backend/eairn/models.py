@@ -389,6 +389,9 @@ class Rubric(Base):
     name: Mapped[str] = mapped_column(String(200))
     confidence_threshold: Mapped[float] = mapped_column(Float, default=0.80)
     source_digest: Mapped[str] = mapped_column(String(64), default="")
+    #: Display names for the overlay indices, e.g. {"ARI": "Agent Readiness Index"}.
+    #: Held as rubric data so a fork can rename an index without touching code.
+    index_names: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     pillars: Mapped[list["RubricPillar"]] = relationship(

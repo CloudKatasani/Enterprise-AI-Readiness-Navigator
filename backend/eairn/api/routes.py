@@ -25,6 +25,7 @@ from eairn.connectors import describe_all
 from eairn.dashboard import (
     architect_view,
     executive_view,
+    portfolio,
     serialize_assessment,
     serialize_evidence,
     serialize_recommendation,
@@ -209,6 +210,12 @@ def get_questionnaire() -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # tenants
 # --------------------------------------------------------------------------- #
+
+
+@router.get("/portfolio", tags=["dashboard"])
+def get_portfolio(session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Assessed organisations grouped by industry, latest snapshot each."""
+    return {"industries": portfolio(session)}
 
 
 @router.get("/tenants", tags=["tenants"])

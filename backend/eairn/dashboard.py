@@ -121,6 +121,92 @@ def serialize_assessment(assessment: Assessment) -> dict[str, Any]:
     }
 
 
+#: Industry keys are stored machine-readable; these are the labels a reader sees.
+INDUSTRY_LABELS = {
+    "financial_services": "Financial Services",
+    "telecommunications": "Telecommunications",
+    "retail": "Retail & Consumer",
+    "utilities": "Utilities & Energy",
+    "technology": "Technology & Software",
+    "healthcare": "Healthcare & Life Sciences",
+    "manufacturing": "Manufacturing",
+    "public_sector": "Public Sector",
+    "unspecified": "Unclassified",
+}
+
+
+def industry_label(key: str) -> str:
+    return INDUSTRY_LABELS.get(key, key.replace("_", " ").title())
+
+
+def portfolio(session: Session) -> list[dict[str, Any]]:
+    """Every assessed organisation, grouped by industry, latest snapshot each.
+
+    This is the entry point to the executive view: a CDO comparing their estate
+    to a peer's needs to see both, and a delivery partner running several
+    assessments needs one place to pick between them.
+    """
+    tenants = list(session.scalars(select(Tenant).order_by(Tenant.name)))
+    by_industry: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+    for tenant in tenants:
+        latest = session.scalar(
+            select(Assessment)
+            .where(Assessment.tenant_id == tenant.id, Assessment.status == "complete")
+            .order_by(Assessment.id.desc())
+        )
+        if latest is None:
+            continue
+        stats = latest.stats or {}
+        # Count blocking *findings*, not just caps that bound: an estate already
+        # below a cap still has the finding, and hiding it would flatter it.
+        blockers = stats.get("blockers_triggered") or stats.get("caps_applied", [])
+        by_industry[tenant.industry].append(
+            {
+                "tenant_key": tenant.key,
+                "tenant": tenant.name,
+                "size_band": tenant.size_band,
+                "snapshot_id": latest.snapshot_id,
+                "label": latest.label,
+                "harvested_at": latest.harvested_at.isoformat() if latest.harvested_at else None,
+                "composite_score": latest.composite_score,
+                "grade": latest.grade,
+                "grade_interpretation": (latest.stats or {}).get("grade_interpretation", ""),
+                "ari_score": latest.ari_score,
+                "ari_grade": latest.ari_grade,
+                "rri_score": latest.rri_score,
+                "rri_grade": latest.rri_grade,
+                "hard_blockers": len({b["scope"] for b in blockers}),
+                "hard_blockers_binding": len(
+                    {b["scope"] for b in blockers if b.get("applied", True)}
+                ),
+                "evidence_records": (latest.stats or {}).get("evidence_records", 0),
+                "assessment_count": len(
+                    [a for a in tenant.assessments if a.status == "complete"]
+                ),
+            }
+        )
+
+    return [
+        {
+            "industry": key,
+            "industry_label": industry_label(key),
+            "organisations": sorted(
+                orgs, key=lambda o: (o["composite_score"] is None, -(o["composite_score"] or 0))
+            ),
+            "median_composite": round(
+                sorted(o["composite_score"] for o in orgs if o["composite_score"] is not None)[
+                    len([o for o in orgs if o["composite_score"] is not None]) // 2
+                ],
+                1,
+            )
+            if any(o["composite_score"] is not None for o in orgs)
+            else None,
+        }
+        for key, orgs in sorted(by_industry.items(), key=lambda kv: industry_label(kv[0]))
+    ]
+
+
 def _load(session: Session, assessment: Assessment):
     scores = list(session.scalars(select(Score).where(Score.assessment_id == assessment.id)))
     evidence = list(session.scalars(select(Evidence).where(Evidence.assessment_id == assessment.id)))
@@ -143,7 +229,15 @@ def executive_view(session: Session, assessment: Assessment) -> dict[str, Any]:
         metrics["ARI"] = assessment.ari_score
     if assessment.rri_score is not None:
         metrics["RRI"] = assessment.rri_score
-    benchmarks = [b.as_dict() for b in benchmark(session, tenant, metrics)]
+
+    # Metric keys are machine-readable; the reader gets the rubric's own names,
+    # so an index appears as "Agent Readiness Index" rather than "ARI".
+    labels = {"composite": "Composite readiness"}
+    labels.update({s.key: s.name for s in scores if s.scope in {"pillar", "index"}})
+    benchmarks = [
+        {**b.as_dict(), "label": labels.get(b.metric_key, b.metric_key)}
+        for b in benchmark(session, tenant, metrics)
+    ]
 
     # Top risks: severity first, then how far the check is from its target.
     risks = sorted(
@@ -162,12 +256,15 @@ def executive_view(session: Session, assessment: Assessment) -> dict[str, Any]:
 
     return {
         "assessment": serialize_assessment(assessment),
+        "industry": tenant.industry if tenant else None,
+        "industry_label": industry_label(tenant.industry) if tenant else None,
         "grade_interpretation": (assessment.stats or {}).get("grade_interpretation", ""),
         "pillars": [serialize_score(s) for s in scores if s.scope == "pillar"],
         "indices": [serialize_score(s) for s in scores if s.scope == "index"],
         "benchmarks": benchmarks,
         "trend": trend,
-        "caps_applied": (assessment.stats or {}).get("caps_applied", []),
+        "caps_applied": (assessment.stats or {}).get("blockers_triggered")
+        or (assessment.stats or {}).get("caps_applied", []),
         "top_risks": [serialize_evidence(e) for e in risks],
         "roadmap": [
             {

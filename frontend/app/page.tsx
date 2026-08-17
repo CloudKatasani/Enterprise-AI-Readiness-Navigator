@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   ApiDownNotice,
   BenchmarkRow,
@@ -7,22 +8,33 @@ import {
   Metric,
   NoSnapshotNotice,
   PillarBar,
+  Portfolio,
 } from "@/components/ui";
-import { ApiUnavailable, executiveView, latestSnapshotId } from "@/lib/api";
+import { ApiUnavailable, executiveView, portfolio } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExecutivePage() {
-  let snapshotId: string | null;
+export default async function ExecutivePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ snapshot?: string }>;
+}) {
+  let industries;
   try {
-    snapshotId = await latestSnapshotId();
+    industries = await portfolio();
   } catch (error) {
     if (error instanceof ApiUnavailable) return <ApiDownNotice detail={error.message} />;
     throw error;
   }
-  if (!snapshotId) return <NoSnapshotNotice />;
 
-  const view = await executiveView(snapshotId);
+  const organisations = industries.flatMap((industry) => industry.organisations);
+  if (organisations.length === 0) return <NoSnapshotNotice />;
+
+  const requested = (await searchParams).snapshot;
+  const selected =
+    organisations.find((org) => org.snapshot_id === requested) ?? organisations[0];
+
+  const view = await executiveView(selected.snapshot_id);
   const { assessment, investment } = view;
   const benchmarkByKey = new Map(view.benchmarks.map((b) => [b.metric_key, b]));
   const composite = benchmarkByKey.get("composite");
@@ -35,21 +47,37 @@ export default async function ExecutivePage() {
   return (
     <>
       <div className="eyebrow">Executive view</div>
-      <h1>
+      <h1>Assessed estates</h1>
+      <p className="lede">
+        {organisations.length} organisations across {industries.length} industries, each scored from
+        its own machine evidence under rubric v{assessment.rubric_version}. Select one to read its
+        blockers, benchmarks and roadmap.
+      </p>
+
+      <Portfolio industries={industries} selectedSnapshot={selected.snapshot_id} />
+
+      <h2>
         {assessment.tenant} — {assessment.grade}
-      </h1>
-      <p className="lede">{view.grade_interpretation}</p>
+      </h2>
+      <div className="selected-strip">
+        <span className="muted">
+          {view.industry_label} · {selected.size_band.replace(/_/g, " ")} ·{" "}
+          {view.grade_interpretation}
+        </span>
+        <Link href={`/architect?snapshot=${selected.snapshot_id}`}>Architect view →</Link>
+        <Link href={`/steward?snapshot=${selected.snapshot_id}`}>Steward view →</Link>
+      </div>
 
       <section className="card score-hero">
         <Dial value={assessment.composite_score} grade={assessment.grade} caption="composite" />
         <div className="grid cols-4" style={{ flex: 1, minWidth: "320px" }}>
           <Metric
-            label="Agent Readiness (ARI)"
+            label="Agent Readiness Index"
             value={assessment.ari_score?.toFixed(1) ?? "--"}
             sub={assessment.ari_grade ?? "not scored"}
           />
           <Metric
-            label="RAG Readiness (RRI)"
+            label="RAG Readiness Index"
             value={assessment.rri_score?.toFixed(1) ?? "--"}
             sub={assessment.rri_grade ?? "not scored"}
           />
@@ -58,7 +86,7 @@ export default async function ExecutivePage() {
             value={composite ? `p${composite.percentile.toFixed(0)}` : "n/a"}
             sub={
               composite
-                ? `${composite.cohort_definition.industry}, n=${composite.cohort_definition.n}`
+                ? `${view.industry_label ?? composite.cohort_definition.industry}, n=${composite.cohort_definition.n}`
                 : "no cohort"
             }
           />

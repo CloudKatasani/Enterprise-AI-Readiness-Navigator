@@ -21,7 +21,7 @@ one part deferred · **Roadmap** — specified, scheduled per the blueprint's ph
 | 13 | Scoring framework | Built | `scoring/engine.py`; rubric-as-data, confidence gating, tier weighting, hard-blocker overrides, snapshot hashing |
 | 14 | Agent Readiness Index | Built | `checks/agent.py` (`AG-001`…`AG-007`) + ARI dimensions in the rubric, including compositional entitlement reconciliation |
 | 15 | RAG Readiness Index | Built | `checks/rag.py` (`RG-001`…`RG-006`) + RRI dimensions, with the ACL hard blocker |
-| 16 | Executive dashboard | Partial | Three role-scoped views with full evidence traceability and cohort definitions displayed. PPTX/PDF board-pack export is not built |
+| 16 | Executive dashboard | Partial | Three role-scoped views with full evidence traceability and cohort definitions displayed; the executive view opens on a multi-industry portfolio of assessed estates. PPTX/PDF board-pack export is not built |
 | 17 | Claude Code build plan | Built | Build sequence followed: canonical model + rubric → Snowflake reference connector → scoring engine with golden tests → Portal MVP → remaining connectors + recommendation engine + advisor |
 | 18 | Product roadmap | n/a | Phase labels are carried on each connector (`roadmap_phase`) and surfaced in the Portal |
 | 19 | Commercialization | n/a | Rubric-as-data and the canonical-bundle import are the two engineering enablers for partner delivery and white-labelled weighting profiles |

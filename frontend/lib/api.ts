@@ -99,6 +99,8 @@ export interface Recommendation {
 
 export interface Benchmark {
   metric_key: string;
+  /** Display name from the rubric, e.g. "Agent Readiness Index" for key "ARI". */
+  label?: string;
   score: number;
   percentile: number;
   cohort_key: string;
@@ -115,10 +117,42 @@ export interface Cap {
   uncapped_score: number;
   rationale: string;
   failing_targets: number;
+  /** False when the estate already scores below the cap: the finding stands,
+   *  but there is nothing left for it to cap. */
+  applied?: boolean;
+}
+
+export interface PortfolioOrg {
+  tenant_key: string;
+  tenant: string;
+  size_band: string;
+  snapshot_id: string;
+  label: string;
+  harvested_at: string | null;
+  composite_score: number | null;
+  grade: string | null;
+  grade_interpretation: string;
+  ari_score: number | null;
+  ari_grade: string | null;
+  rri_score: number | null;
+  rri_grade: string | null;
+  hard_blockers: number;
+  hard_blockers_binding: number;
+  evidence_records: number;
+  assessment_count: number;
+}
+
+export interface PortfolioIndustry {
+  industry: string;
+  industry_label: string;
+  organisations: PortfolioOrg[];
+  median_composite: number | null;
 }
 
 export interface ExecutiveView {
   assessment: AssessmentSummary;
+  industry: string | null;
+  industry_label: string | null;
   grade_interpretation: string;
   pillars: ScoreLine[];
   indices: ScoreLine[];
@@ -184,6 +218,24 @@ export interface ConnectorDescriptor {
 }
 
 // -- calls ------------------------------------------------------------------ //
+
+export const portfolio = () =>
+  get<{ industries: PortfolioIndustry[] }>("/api/portfolio").then((r) => r.industries);
+
+/**
+ * Resolve which estate a view is showing: the requested snapshot when it exists,
+ * otherwise the first in the portfolio. All three role views share this so the
+ * default estate is the same wherever the reader lands.
+ */
+export const resolveSelection = async (
+  requested?: string,
+): Promise<{ org: PortfolioOrg; industries: PortfolioIndustry[] } | null> => {
+  const industries = await portfolio();
+  const organisations = industries.flatMap((industry) => industry.organisations);
+  if (organisations.length === 0) return null;
+  const org = organisations.find((o) => o.snapshot_id === requested) ?? organisations[0];
+  return { org, industries };
+};
 
 export const listAssessments = () =>
   get<{ assessments: AssessmentSummary[] }>("/api/assessments").then((r) => r.assessments);

@@ -1,24 +1,36 @@
 import { ApiDownNotice, EvidenceItem, Metric, NoSnapshotNotice } from "@/components/ui";
-import { ApiUnavailable, latestSnapshotId, stewardView } from "@/lib/api";
+import Link from "next/link";
+import { ApiUnavailable, resolveSelection, stewardView } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
-export default async function StewardPage() {
-  let snapshotId: string | null;
+export default async function StewardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ snapshot?: string }>;
+}) {
+  let selection;
   try {
-    snapshotId = await latestSnapshotId();
+    selection = await resolveSelection((await searchParams).snapshot);
   } catch (error) {
     if (error instanceof ApiUnavailable) return <ApiDownNotice detail={error.message} />;
     throw error;
   }
-  if (!snapshotId) return <NoSnapshotNotice />;
+  if (!selection) return <NoSnapshotNotice />;
 
-  const view = await stewardView(snapshotId);
+  const { org } = selection;
+  const view = await stewardView(org.snapshot_id);
 
   return (
     <>
       <div className="eyebrow">Steward view</div>
       <h1>Review queue and findings</h1>
+      <div className="selected-strip">
+        <span className="muted">
+          {org.tenant} · {org.grade} · composite {org.composite_score?.toFixed(1)}
+        </span>
+        <Link href={`/?snapshot=${org.snapshot_id}`}>← Executive view</Link>
+      </div>
       <p className="lede">
         Low-confidence inferences sit here until a human accepts or rejects them — they do not
         influence the score in the meantime. Accepting one re-scores the snapshot and records who

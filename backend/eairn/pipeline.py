@@ -217,6 +217,7 @@ def run_assessment(
         "checks_skipped": skipped,
         "unmeasured_criteria": result.unmeasured_criteria,
         "caps_applied": result.caps_applied,
+        "blockers_triggered": result.blockers_triggered,
         "datasets": len(estate.datasets),
         "tier1_datasets": len(estate.tier1),
         "platforms": list(estate.platforms),

@@ -49,7 +49,12 @@ class ScoringResult:
     lines: list[ScoreLine] = field(default_factory=list)
     indices: dict[str, float] = field(default_factory=dict)
     index_grades: dict[str, str] = field(default_factory=dict)
+    #: Overrides that lowered a score.
     caps_applied: list[dict] = field(default_factory=list)
+    #: Every override whose condition fired, whether or not it lowered a score.
+    #: An estate already scoring below a cap still has the blocking finding, and
+    #: an executive needs to see it -- "no cap applied" is not "no blocker".
+    blockers_triggered: list[dict] = field(default_factory=list)
     unmeasured_criteria: list[str] = field(default_factory=list)
     pending_review_evidence: list[int] = field(default_factory=list)
 
@@ -104,6 +109,7 @@ def score_assessment(rubric: Rubric, evidence: Sequence[Evidence]) -> ScoringRes
     lines: list[ScoreLine] = []
     unmeasured: list[str] = []
     caps: list[dict] = []
+    triggered: list[dict] = []
     overrides_by_scope: dict[str, list] = defaultdict(list)
     for override in rubric.overrides:
         overrides_by_scope[override.cap_scope].append(override)
@@ -115,26 +121,32 @@ def score_assessment(rubric: Rubric, evidence: Sequence[Evidence]) -> ScoringRes
             records = by_check.get(override.check_id, [])
             if not records:
                 continue
-            triggered = False
+            fired = False
             if override.condition == "failing_targets_above":
-                triggered = _failing_count(records) > override.threshold
+                fired = _failing_count(records) > override.threshold
             elif override.condition == "result_below":
-                triggered = _aggregate(records) < override.threshold
+                fired = _aggregate(records) < override.threshold
             elif override.condition == "result_at_or_below":
-                triggered = _aggregate(records) <= override.threshold
-            if triggered and override.cap_value < best_value:
+                fired = _aggregate(records) <= override.threshold
+            if not fired:
+                continue
+            binds = override.cap_value < best_value
+            entry = {
+                "override": override.key,
+                "scope": scope,
+                "check_id": override.check_id,
+                "cap_value": override.cap_value,
+                "uncapped_score": round(raw, 4),
+                "rationale": override.rationale,
+                "failing_targets": _failing_count(records),
+                # False when the estate already scores below the cap: the finding
+                # is still present, it simply has nothing left to cap.
+                "applied": binds,
+            }
+            triggered.append(entry)
+            if binds:
                 best_value, best_key = override.cap_value, override.key
-                caps.append(
-                    {
-                        "override": override.key,
-                        "scope": scope,
-                        "check_id": override.check_id,
-                        "cap_value": override.cap_value,
-                        "uncapped_score": round(raw, 4),
-                        "rationale": override.rationale,
-                        "failing_targets": _failing_count(records),
-                    }
-                )
+                caps.append(entry)
         return best_value, best_key
 
     # -- criteria and pillars ------------------------------------------------ #
@@ -252,7 +264,9 @@ def score_assessment(rubric: Rubric, evidence: Sequence[Evidence]) -> ScoringRes
             ScoreLine(
                 scope="index",
                 key=index_key,
-                name=index_key,
+                # The display name is rubric data, so an index can be renamed
+                # without an engine change.
+                name=(rubric.index_names or {}).get(index_key, index_key),
                 score=index_score,
                 raw_score=round(raw_index, 4),
                 weight=1.0,
@@ -269,6 +283,7 @@ def score_assessment(rubric: Rubric, evidence: Sequence[Evidence]) -> ScoringRes
         indices=indices,
         index_grades=index_grades,
         caps_applied=caps,
+        blockers_triggered=triggered,
         unmeasured_criteria=sorted(set(unmeasured)),
         pending_review_evidence=pending,
     )

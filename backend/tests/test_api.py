@@ -196,3 +196,30 @@ def test_questionnaire_round_trip(client: TestClient) -> None:
 
 def test_unknown_snapshot_is_404(client: TestClient) -> None:
     assert client.get("/api/assessments/snap_missing").status_code == 404
+
+def test_portfolio_groups_organisations_by_industry(client: TestClient) -> None:
+    """The executive view opens on a portfolio, so it must span industries."""
+    industries = client.get("/api/portfolio").json()["industries"]
+    assert industries, "portfolio is empty"
+    for industry in industries:
+        assert industry["industry_label"], "an industry must carry a readable label"
+        assert industry["organisations"]
+        for org in industry["organisations"]:
+            assert org["snapshot_id"] and org["grade"]
+            # Scores are ordered strongest-first within an industry.
+        scores = [o["composite_score"] for o in industry["organisations"]]
+        assert scores == sorted(scores, reverse=True)
+
+
+def test_indices_use_their_full_names(client: TestClient, demo_snapshot: str) -> None:
+    """ARI/RRI are keys, not labels: a reader sees the rubric's own index names."""
+    scores = client.get(f"/api/assessments/{demo_snapshot}/scores").json()["scores"]
+    index_names = {s["key"]: s["name"] for s in scores if s["scope"] == "index"}
+    assert index_names == {"ARI": "Agent Readiness Index", "RRI": "RAG Readiness Index"}
+
+    view = client.get(f"/api/assessments/{demo_snapshot}/dashboard/executive").json()
+    labels = {b["metric_key"]: b["label"] for b in view["benchmarks"]}
+    assert labels["ARI"] == "Agent Readiness Index"
+    assert labels["RRI"] == "RAG Readiness Index"
+    assert labels["composite"] == "Composite readiness"
+    assert labels["data_quality"] == "Data Quality"

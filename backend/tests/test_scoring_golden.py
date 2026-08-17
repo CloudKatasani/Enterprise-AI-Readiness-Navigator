@@ -184,3 +184,49 @@ def test_checks_skipped_when_capability_absent(demo_tenant_key: str) -> None:
 
     assert "RG-005" in skipped, "RAG checks require rag_corpora and must be skipped without it"
     assert "AG-006" in skipped, "agent checks require agent evidence and must be skipped without it"
+
+
+def test_maturity_profiles_separate_on_score() -> None:
+    """A profile sets estate facts, not a grade -- but the ordering must hold.
+
+    If a 'leading' estate did not out-score an 'at_risk' one, either the profiles
+    or the checks would be measuring something other than readiness.
+    """
+    from eairn.connectors import build_connector
+    from eairn.connectors.profiles import MATURITY_PROFILES
+
+    assert set(MATURITY_PROFILES) == {"leading", "advancing", "emerging", "at_risk"}
+
+    protection_rates = {}
+    for maturity in MATURITY_PROFILES:
+        bundle = build_connector(
+            "demo", {"industry": "utilities", "maturity": maturity, "seed": 7}
+        ).harvest()
+        classified = [c for d in bundle.datasets for c in d.columns if c.platform_classification]
+        protection_rates[maturity] = sum(1 for c in classified if c.protected) / max(len(classified), 1)
+
+    assert (
+        protection_rates["leading"]
+        > protection_rates["advancing"]
+        > protection_rates["emerging"]
+        > protection_rates["at_risk"]
+    )
+
+
+def test_industry_profiles_shape_the_estate() -> None:
+    """Industry decides domains, platform and where sensitive data concentrates."""
+    from eairn.connectors import build_connector
+    from eairn.connectors.profiles import INDUSTRY_PROFILES
+
+    for key, profile in INDUSTRY_PROFILES.items():
+        bundle = build_connector("demo", {"industry": key, "maturity": "advancing"}).harvest()
+        domains = {d.domain for d in bundle.datasets}
+        assert domains == {d[1] for d in profile.domains}, f"{key} domains do not match its profile"
+
+        sensitive_domains = {
+            d.domain for d in bundle.datasets for c in d.columns if c.platform_classification
+        }
+        assert sensitive_domains <= profile.sensitive_domains, (
+            f"{key} has classified columns outside its declared sensitive domains"
+        )
+        assert bundle.datasets[0].platform == bundle.platform
