@@ -359,6 +359,16 @@ overrides:
     rationale: >-
       An agent whose actions cannot be attributed and replayed cannot be operated
       safely on enterprise data, whatever the rest of the estate looks like.
+  - key: no_agent_action_audit_index
+    check_id: AG-006
+    condition: failing_targets_above
+    threshold: 0
+    cap_scope: ARI
+    cap_value: 39
+    rationale: >-
+      The same finding that caps the Agent Readiness pillar caps the index: an estate whose agent
+      actions cannot be attributed and replayed is Agent-At-Risk by definition, and an index that
+      reported otherwise would contradict the pillar it summarises.
   - key: rag_acl_not_enforced
     check_id: RG-005
     condition: failing_targets_above

@@ -80,6 +80,8 @@ def test_hard_blockers_cap_their_scope(demo_snapshot: str) -> None:
     assert scores["security"].raw_score > 49, "the cap must be doing work, not matching arithmetic"
     assert scores["agent_readiness"].score == 39
     assert assessment.rri_score == 39
+    # The index must not contradict the pillar it summarises.
+    assert assessment.ari_score == 39
 
 
 def test_low_confidence_evidence_is_queued_not_scored(demo_snapshot: str) -> None:

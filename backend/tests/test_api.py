@@ -35,7 +35,12 @@ def test_check_and_rubric_catalog(client: TestClient) -> None:
     rubric = client.get("/api/rubrics/2.0").json()
     assert rubric["version"] == "2.0"
     assert len(rubric["pillars"]) == 8
-    assert {o["cap_scope"] for o in rubric["overrides"]} == {"security", "agent_readiness", "RRI"}
+    assert {o["cap_scope"] for o in rubric["overrides"]} == {
+        "security",
+        "agent_readiness",
+        "ARI",
+        "RRI",
+    }
 
 
 def test_assessment_lifecycle(client: TestClient, demo_snapshot: str) -> None:
@@ -98,6 +103,7 @@ def test_simulation_projects_cap_relief(client: TestClient, demo_snapshot: str) 
     assert set(body["cleared_caps"]) == {
         "unprotected_classified_columns",
         "no_agent_action_audit",
+        "no_agent_action_audit_index",
         "rag_acl_not_enforced",
     }
 
