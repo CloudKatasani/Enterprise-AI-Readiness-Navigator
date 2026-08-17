@@ -149,12 +149,28 @@ export function EvidenceItem({ record }: { record: EvidenceRecord }) {
   );
 }
 
-/** One assessed organisation in the portfolio. */
-export function OrgCard({ org, selected }: { org: PortfolioOrg; selected: boolean }) {
+/** Which of an estate's role pages a portfolio link opens. */
+export type EstateView = "executive" | "architect" | "steward";
+
+/** Every estate has its own page; the role views are children of that page. */
+export function estateHref(snapshotId: string, view: EstateView = "executive"): string {
+  return view === "executive" ? `/estates/${snapshotId}` : `/estates/${snapshotId}/${view}`;
+}
+
+/** One assessed organisation in the portfolio, linking to its own page. */
+export function OrgCard({
+  org,
+  selected = false,
+  view = "executive",
+}: {
+  org: PortfolioOrg;
+  selected?: boolean;
+  view?: EstateView;
+}) {
   const accent = gradeColor(org.composite_score);
   return (
     <Link
-      href={`/?snapshot=${org.snapshot_id}`}
+      href={estateHref(org.snapshot_id, view)}
       className="org-card"
       aria-current={selected}
       style={{ "--org-accent": accent } as React.CSSProperties}
@@ -185,9 +201,11 @@ export function OrgCard({ org, selected }: { org: PortfolioOrg; selected: boolea
 export function Portfolio({
   industries,
   selectedSnapshot,
+  view = "executive",
 }: {
   industries: PortfolioIndustry[];
-  selectedSnapshot: string;
+  selectedSnapshot?: string;
+  view?: EstateView;
 }) {
   return (
     <>
@@ -207,6 +225,7 @@ export function Portfolio({
               <OrgCard
                 key={org.snapshot_id}
                 org={org}
+                view={view}
                 selected={org.snapshot_id === selectedSnapshot}
               />
             ))}
@@ -253,6 +272,23 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
       </pre>
       <p className="muted mono" style={{ marginBottom: 0 }}>
         {detail}
+      </p>
+    </div>
+  );
+}
+
+/** An estate URL that does not match any snapshot in the portfolio. */
+export function UnknownEstateNotice({ snapshotId }: { snapshotId: string }) {
+  return (
+    <div className="notice">
+      <h3>No such assessed estate</h3>
+      <p className="muted">
+        Snapshot <code>{snapshotId}</code> is not in the portfolio. Snapshots are immutable, so a
+        link only breaks when the estate was never assessed on this instance — or the database was
+        re-seeded since the link was made.
+      </p>
+      <p style={{ marginBottom: 0 }}>
+        <Link href="/">← Back to all assessed estates</Link>
       </p>
     </div>
   );

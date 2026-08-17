@@ -108,16 +108,24 @@ the Recommendation Engine re-runs the scoring engine with that play's target app
 **measured** composite delta and any hard-blocker cap the play would clear — then ranks by impact per
 effort day. `POST /api/assessments/{id}/simulate` exposes the same what-if to any caller.
 
-### Three role-scoped views
+### A page per estate, three role-scoped views within it
 
-- **Executive** — opens on the portfolio: every assessed organisation grouped by industry, each card
-  showing composite, grade, Agent Readiness Index, RAG Readiness Index and blocker count. Selecting
-  one shows its grade and trend, peer percentile with the cohort definition alongside it, hard
-  blockers, top-5 risks, and the roadmap with investment vs projected score.
-- **Architect** — pillar heatmap by platform and business domain, with drill-through from any score to
-  the evidence records behind it.
-- **Steward** — the low-confidence review queue, the findings queue with the exact failing objects, and
-  draft recommendations awaiting approval.
+`/` is the portfolio: every assessed organisation grouped by industry, each card showing composite,
+grade, Agent Readiness Index, RAG Readiness Index and blocker count. Each card is a link to that
+estate's own page at `/estates/{snapshot_id}` — bookmarkable, shareable, and openable in a new tab,
+because a readiness result belongs to one organisation and one immutable snapshot. Inside an estate,
+three role views sit behind tabs that always carry the snapshot in the path:
+
+- **Executive** (`/estates/{snapshot_id}`) — grade and trend, peer percentile with the cohort
+  definition alongside it, hard blockers, top-5 risks, and the roadmap with investment vs projected
+  score.
+- **Architect** (`/estates/{snapshot_id}/architect`) — pillar heatmap by platform and business domain,
+  with drill-through from any score to the evidence records behind it.
+- **Steward** (`/estates/{snapshot_id}/steward`) — the low-confidence review queue, the findings queue
+  with the exact failing objects, and draft recommendations awaiting approval.
+
+The masthead's Architect and Steward entries list the estates for that role rather than defaulting to
+one: no view ever shows an estate the reader did not choose.
 
 ---
 

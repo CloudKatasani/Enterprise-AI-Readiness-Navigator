@@ -7,7 +7,7 @@ model rather than a source of truth.
 
 | Component | Module | Responsibility |
 |---|---|---|
-| Portal | `frontend/` | Role-scoped views: executive, architect, steward, connector permission pack |
+| Portal | `frontend/` | Portfolio index, then a page per assessed estate at `/estates/{snapshot_id}` carrying the executive, architect and steward views; plus the connector permission pack |
 | Connector Framework | `backend/eairn/connectors/` | Pluggable read-only adapters, each with a capability set and a published permission manifest |
 | Metadata Engine | `backend/eairn/models.py`, `pipeline.py` | Canonical entity model and the harvest→persist path |
 | Governance Engine | `backend/eairn/checks/governance.py`, `security.py` | Policy, classification, ownership and access posture, including mechanical propagation checks |

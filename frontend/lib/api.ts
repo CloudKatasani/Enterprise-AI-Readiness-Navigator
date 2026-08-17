@@ -223,18 +223,20 @@ export const portfolio = () =>
   get<{ industries: PortfolioIndustry[] }>("/api/portfolio").then((r) => r.industries);
 
 /**
- * Resolve which estate a view is showing: the requested snapshot when it exists,
- * otherwise the first in the portfolio. All three role views share this so the
- * default estate is the same wherever the reader lands.
+ * Locate one assessed estate by snapshot id, together with the industry it sits
+ * in. Every estate page is addressed by its own snapshot, so there is no
+ * "default estate" to fall back to: an unknown snapshot is a 404, not somebody
+ * else's numbers rendered under the wrong name.
  */
-export const resolveSelection = async (
-  requested?: string,
-): Promise<{ org: PortfolioOrg; industries: PortfolioIndustry[] } | null> => {
+export const findOrg = async (
+  snapshotId: string,
+): Promise<{ org: PortfolioOrg; industry: PortfolioIndustry } | null> => {
   const industries = await portfolio();
-  const organisations = industries.flatMap((industry) => industry.organisations);
-  if (organisations.length === 0) return null;
-  const org = organisations.find((o) => o.snapshot_id === requested) ?? organisations[0];
-  return { org, industries };
+  for (const industry of industries) {
+    const org = industry.organisations.find((o) => o.snapshot_id === snapshotId);
+    if (org) return { org, industry };
+  }
+  return null;
 };
 
 export const listAssessments = () =>
