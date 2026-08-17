@@ -1,0 +1,371 @@
+# Remediation playbook library.
+#
+# Playbooks are data, not code: a finding pattern maps to a play with an effort
+# estimate, a horizon and a target value for the check it fixes. The
+# Recommendation Engine takes the target, re-runs the Scoring Engine over the
+# projected evidence, and reports the *measured* score impact -- so the roadmap
+# is ordered by simulated outcome rather than by opinion.
+#
+# effort_days is the delivery estimate for a typical mid-size estate; the engine
+# scales it by the size of the failing-target set.
+version: "2.0"
+day_rate: 1200  # used only to express effort as an indicative cost
+
+playbooks:
+  - id: PB-SEC-001
+    check_id: SE-002
+    trigger: result_below
+    threshold: 100
+    title: Bind masking policies to classification tags so protection is mechanical
+    pillar: security
+    horizon: structural
+    target: 100
+    effort_days: 25
+    effort_per_failing_target: 0.08
+    unblocks: [agent_readiness, rag_readiness]
+    summary: >-
+      Replace per-column masking with tag-driven policy binding: attach the policy to the
+      classification tag itself so any column that is ever tagged is protected by construction,
+      including columns created after the rollout.
+    steps:
+      - Inventory every classified column with no protection, grouped by owner and domain.
+      - Define one masking policy per classification value with the data-protection owner.
+      - Bind policy to tag (Snowflake tag-based masking / BigQuery policy tag / Purview label) rather than to columns.
+      - Backfill tags on the unprotected set, verifying each with a steward before apply.
+      - Add a CI check that fails when a classified column has no resolvable policy.
+    rationale: >-
+      Unprotected classified columns are the estate's only unmitigated disclosure path and they
+      trigger the Security hard-blocker cap, which bounds the composite regardless of progress
+      elsewhere.
+
+  - id: PB-SEC-002
+    check_id: SE-003
+    trigger: result_below
+    threshold: 95
+    title: Propagate classification along lineage automatically
+    pillar: security
+    horizon: structural
+    target: 100
+    effort_days: 18
+    effort_per_failing_target: 0.05
+    summary: >-
+      Make sensitivity inheritance mechanical: a downstream column derived from a classified
+      upstream column inherits the classification without human action.
+    steps:
+      - Enable column-level lineage capture where it is not already on.
+      - Run the propagation job in report-only mode and reconcile with stewards.
+      - Promote to enforcing, with an exception register for deliberate declassification.
+    rationale: >-
+      Classification that stops at the source table means every mart is an unclassified copy of
+      regulated data.
+
+  - id: PB-SEC-003
+    check_id: SE-004
+    trigger: result_below
+    threshold: 95
+    title: Migrate direct-to-user grants onto functional roles
+    pillar: security
+    horizon: structural
+    target: 98
+    effort_days: 15
+    effort_per_failing_target: 0.05
+    summary: Retire object grants held by human identities in favour of reviewable functional roles.
+    steps:
+      - Export the direct-grant inventory and map each holder to a functional role.
+      - Grant the functional role, observe usage for two weeks, then revoke the direct grant.
+      - Block direct grants at the policy layer and alert on new ones.
+    rationale: >-
+      Direct grants are invisible to access review and survive role changes, so the entitlement
+      picture an agent inherits is not the one governance believes it approved.
+
+  - id: PB-AGT-001
+    check_id: AG-006
+    trigger: result_below
+    threshold: 100
+    title: Give every agent a distinct identity and a replayable action trail
+    pillar: agent_readiness
+    horizon: quick_win
+    target: 100
+    effort_days: 12
+    effort_per_failing_target: 2.0
+    unblocks: [agent_readiness]
+    summary: >-
+      Issue one service identity per agent, log every action against it, and store the
+      action -> evidence -> approval chain so any output can be reconstructed after the fact.
+    steps:
+      - Create a distinct service principal per agent; remove shared-identity access.
+      - Emit a structured action log (agent id, tool, target, inputs hash, approval reference).
+      - Retain the trail for the audit window and prove replay on one historical incident.
+    rationale: >-
+      Without an attributable, replayable trail an agent's output cannot be explained or defended,
+      which caps Agent Readiness at AI-At-Risk however good the data is.
+
+  - id: PB-AGT-002
+    check_id: AG-004
+    trigger: result_below
+    threshold: 100
+    title: Scope entitlements per agent instead of per platform
+    pillar: agent_readiness
+    horizon: structural
+    target: 100
+    effort_days: 20
+    effort_per_failing_target: 3.0
+    summary: Replace shared service accounts with per-agent roles scoped to the tools each agent needs.
+    steps:
+      - Model the minimum object set each agent needs from its actual tool calls.
+      - Create a per-agent role granting exactly that set; deny by default.
+      - Reconcile entitlements across composed tools and alert on drift.
+    rationale: >-
+      An agent on a shared identity inherits that identity's whole blast radius, and its actions
+      are indistinguishable from a human's in the log.
+
+  - id: PB-AGT-003
+    check_id: AG-007
+    trigger: result_below
+    threshold: 100
+    title: Add cross-tool entitlement reconciliation and inference control
+    pillar: agent_readiness
+    horizon: strategic
+    target: 90
+    effort_days: 30
+    effort_per_failing_target: 4.0
+    summary: >-
+      Detect and control the case where an agent composing several individually-authorised tools
+      synthesises a disclosure no single tool permits.
+    steps:
+      - Build the composed-entitlement view across every tool an agent can call.
+      - Define inference-control policies on sensitive attribute combinations.
+      - Log composed flows so a disclosure can be reconstructed end to end.
+    rationale: >-
+      Single-tool RBAC cannot see compositional disclosure; without reconciliation the estate has
+      no way to detect it, let alone prevent it.
+
+  - id: PB-RAG-001
+    check_id: RG-005
+    trigger: result_below
+    threshold: 100
+    title: Propagate source ACLs into the index and enforce them at retrieval
+    pillar: rag_readiness
+    horizon: quick_win
+    target: 100
+    effort_days: 15
+    effort_per_failing_target: 5.0
+    unblocks: [rag_readiness]
+    summary: >-
+      Carry document ACLs into chunk metadata and apply a permission filter at query time, so
+      retrieval can never return content the asker could not open directly.
+    steps:
+      - Capture the source ACL on every document at ingest and store it on each chunk.
+      - Apply the caller's identity as a retrieval filter, not as a post-filter on results.
+      - Re-index the affected corpora and prove enforcement with a negative test set.
+    rationale: >-
+      Classified content in an index without retrieval-time filtering is a direct disclosure
+      channel, and it caps the RAG Readiness Index at RAG-At-Risk.
+
+  - id: PB-RAG-002
+    check_id: RG-002
+    trigger: result_below
+    threshold: 85
+    title: Backfill chunk-level filterable metadata
+    pillar: rag_readiness
+    horizon: structural
+    target: 90
+    effort_days: 12
+    effort_per_failing_target: 1.5
+    summary: Ensure every indexed document carries owner, date, classification and audience.
+    steps:
+      - Derive owner and date from the source system where available.
+      - Classify at ingest using the same taxonomy as the warehouse, not a parallel one.
+      - Re-embed with the enriched metadata and expose the attributes as retrieval filters.
+    rationale: >-
+      Without these four attributes retrieval cannot be scoped by recency, sensitivity or
+      audience -- the filters that keep generated answers safe.
+
+  - id: PB-RAG-003
+    check_id: RG-004
+    trigger: result_below
+    threshold: 90
+    title: Set an embedding refresh SLA against measured content change rate
+    pillar: rag_readiness
+    horizon: quick_win
+    target: 95
+    effort_days: 8
+    effort_per_failing_target: 1.0
+    summary: Refresh embeddings at least as often as the underlying content changes.
+    steps:
+      - Measure the change rate per corpus over the last quarter.
+      - Set the refresh cadence to match, with event-driven refresh for high-churn sources.
+      - Alert on index-to-source drift beyond the SLA.
+    rationale: >-
+      An index refreshed more slowly than its content guarantees confident answers from
+      superseded documents.
+
+  - id: PB-DQ-001
+    check_id: DQ-001
+    trigger: result_below
+    threshold: 90
+    title: Attach the baseline monitor set to every Tier-1 dataset
+    pillar: data_quality
+    horizon: quick_win
+    target: 95
+    effort_days: 10
+    effort_per_failing_target: 0.35
+    unblocks: [agent_readiness]
+    summary: >-
+      Completeness, freshness and validity on every Tier-1 dataset, declared as data so the
+      status is queryable at runtime.
+    steps:
+      - Rank Tier-1 datasets by downstream consumption and start at the top.
+      - Attach the three baseline checks via data metric functions or the DQ tool's contract syntax.
+      - Expose the current status as a queryable field for agents and copilots.
+    rationale: >-
+      A dataset with no freshness signal cannot tell an agent that its answer is stale, and the
+      agent will answer anyway.
+
+  - id: PB-DQ-002
+    check_id: DQ-002
+    trigger: result_below
+    threshold: 85
+    title: Move hardcoded DQ rules into rule tables or contracts
+    pillar: data_quality
+    horizon: structural
+    target: 90
+    effort_days: 14
+    effort_per_failing_target: 0.2
+    summary: Extract validation logic from pipeline code into declared, inventoriable rules.
+    steps:
+      - Inventory rules embedded in pipeline code by scanning the transformation repo.
+      - Re-express them as contracts or rule-table rows with the same semantics.
+      - Fail the build when a pipeline adds an undeclared inline validation.
+    rationale: >-
+      Rules buried in code cannot be inventoried, reported on, or read by an agent deciding
+      whether to trust a dataset.
+
+  - id: PB-GOV-001
+    check_id: GV-001
+    trigger: result_below
+    threshold: 95
+    title: Assign and verify accountable owners for Tier-1 datasets
+    pillar: governance
+    horizon: quick_win
+    target: 98
+    effort_days: 8
+    effort_per_failing_target: 0.25
+    summary: Close the Tier-1 ownership gap and re-attest annually.
+    steps:
+      - Publish the unowned Tier-1 list by domain to each domain lead.
+      - Record owner plus deputy in the catalog, with an attestation date.
+      - Automate re-attestation reminders at 11 months.
+    rationale: Ownership is the routing address for every finding; without it remediation stalls.
+
+  - id: PB-GOV-002
+    check_id: GV-005
+    trigger: result_below
+    threshold: 100
+    title: Reconcile catalog and platform classifications
+    pillar: governance
+    horizon: quick_win
+    target: 100
+    effort_days: 6
+    effort_per_failing_target: 0.1
+    summary: Make one system the source of truth for sensitivity and sync the other mechanically.
+    steps:
+      - Publish the disagreement list and adjudicate each with the data-protection owner.
+      - Nominate the system of record and enable one-way sync.
+      - Alert on divergence rather than reconciling by hand each quarter.
+    rationale: >-
+      Two disagreeing classifications mean protection is applied from a different picture of
+      sensitivity than the one governance believes it has.
+
+  - id: PB-MD-001
+    check_id: MD-001
+    trigger: result_below
+    threshold: 85
+    title: Backfill column descriptions from the approved glossary
+    pillar: metadata
+    horizon: quick_win
+    target: 90
+    effort_days: 12
+    effort_per_failing_target: 0.02
+    unblocks: [semantic_layer, agent_readiness]
+    summary: >-
+      Generate candidate descriptions from the glossary and lineage, then have stewards approve
+      them before they are written back. Generation is drafting, never applying.
+    steps:
+      - Draft descriptions for undescribed Tier-1 columns from glossary terms and upstream lineage.
+      - Route drafts to the dataset owner for approval in batches by domain.
+      - Apply only approved text, and record who approved what.
+    rationale: >-
+      Column semantics are what let an agent choose the right field rather than a plausibly-named
+      one; this is the cheapest lift with the widest downstream effect.
+
+  - id: PB-MD-002
+    check_id: MD-004
+    trigger: result_below
+    threshold: 90
+    title: Complete Tier-1 lineage capture
+    pillar: metadata
+    horizon: structural
+    target: 95
+    effort_days: 16
+    effort_per_failing_target: 0.3
+    summary: Ensure every Tier-1 dataset has resolvable upstream lineage from a declared source.
+    steps:
+      - Enable platform lineage capture and ETL-tool lineage ingestion.
+      - Fill gaps for hand-built pipelines with declared edges in the catalog.
+      - Certify Tier-1 lineage completeness as a release gate for new data products.
+    rationale: Lineage is the substrate for impact analysis, propagation and agent citations.
+
+  - id: PB-SL-001
+    check_id: SL-001
+    trigger: result_below
+    threshold: 100
+    title: Consolidate divergent KPI definitions into certified measures
+    pillar: semantic_layer
+    horizon: structural
+    target: 100
+    effort_days: 20
+    effort_per_failing_target: 3.0
+    unblocks: [agent_readiness]
+    summary: One certified definition per KPI, referenced by every model that exposes it.
+    steps:
+      - List KPIs with divergent expressions and the models that own them.
+      - Agree the canonical definition with the metric owner and certify it.
+      - Repoint or retire divergent copies, and block new uncertified duplicates in review.
+    rationale: >-
+      A KPI with two definitions returns two answers to one question, which the person asking
+      cannot distinguish from a hallucination.
+
+  - id: PB-AE-001
+    check_id: AE-006
+    trigger: result_below
+    threshold: 100
+    title: Route external model calls through a governed AI gateway
+    pillar: ai_engineering
+    horizon: quick_win
+    target: 100
+    effort_days: 10
+    effort_per_failing_target: 2.0
+    summary: Usage tracking, payload-logging policy and PII detection on every external LLM endpoint.
+    steps:
+      - Inventory external model endpoints and their calling applications.
+      - Front them with the gateway, enabling rate limits and PII filtering.
+      - Block direct egress to model providers at the network layer.
+    rationale: An ungoverned external endpoint is an unmonitored egress path for enterprise data.
+
+  - id: PB-AE-002
+    check_id: AE-002
+    trigger: result_below
+    threshold: 100
+    title: Register every production model version
+    pillar: ai_engineering
+    horizon: quick_win
+    target: 100
+    effort_days: 6
+    effort_per_failing_target: 1.5
+    summary: Every serving endpoint traceable to a registered version with an owner and a rollback.
+    steps:
+      - Identify serving endpoints with no registered model version.
+      - Register the running artefact and attach training lineage.
+      - Make registration a deployment precondition in CI.
+    rationale: An unregistered endpoint has no version, no owner and no rollback path.

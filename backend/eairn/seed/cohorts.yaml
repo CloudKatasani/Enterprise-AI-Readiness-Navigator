@@ -1,0 +1,78 @@
+# Anonymised peer-cohort distributions.
+#
+# Every consenting assessment enriches this network; the seed distributions below
+# are synthetic reference cohorts used until a real cohort reaches n >= 15 (the
+# P2 exit criterion). Cohorts are always published with their definition --
+# industry, size band and platform mix -- because a percentile without a cohort
+# definition is a misleading number.
+version: "2.0"
+minimum_cohort_size: 15
+
+cohorts:
+  - key: financial_services.enterprise.any
+    industry: financial_services
+    size_band: enterprise
+    platform_mix: any
+    n: 23
+    metrics:
+      composite: {p25: 48, p50: 58, p75: 69, p90: 78}
+      data_quality: {p25: 52, p50: 63, p75: 74, p90: 84}
+      governance: {p25: 50, p50: 61, p75: 72, p90: 82}
+      metadata: {p25: 41, p50: 52, p75: 64, p90: 76}
+      security: {p25: 46, p50: 57, p75: 70, p90: 83}
+      semantic_layer: {p25: 34, p50: 46, p75: 58, p90: 71}
+      ai_engineering: {p25: 38, p50: 50, p75: 63, p90: 75}
+      agent_readiness: {p25: 22, p50: 34, p75: 48, p90: 62}
+      ARI: {p25: 24, p50: 36, p75: 49, p90: 63}
+      RRI: {p25: 28, p50: 40, p75: 54, p90: 68}
+
+  - key: healthcare.enterprise.any
+    industry: healthcare
+    size_band: enterprise
+    platform_mix: any
+    n: 17
+    metrics:
+      composite: {p25: 44, p50: 54, p75: 65, p90: 74}
+      data_quality: {p25: 48, p50: 59, p75: 70, p90: 80}
+      governance: {p25: 52, p50: 63, p75: 74, p90: 84}
+      metadata: {p25: 38, p50: 49, p75: 61, p90: 73}
+      security: {p25: 50, p50: 62, p75: 74, p90: 86}
+      semantic_layer: {p25: 30, p50: 41, p75: 53, p90: 66}
+      ai_engineering: {p25: 33, p50: 45, p75: 57, p90: 70}
+      agent_readiness: {p25: 18, p50: 29, p75: 42, p90: 56}
+      ARI: {p25: 20, p50: 31, p75: 44, p90: 58}
+      RRI: {p25: 25, p50: 37, p75: 50, p90: 64}
+
+  - key: retail.enterprise.any
+    industry: retail
+    size_band: enterprise
+    platform_mix: any
+    n: 19
+    metrics:
+      composite: {p25: 46, p50: 57, p75: 68, p90: 77}
+      data_quality: {p25: 47, p50: 58, p75: 70, p90: 81}
+      governance: {p25: 43, p50: 54, p75: 66, p90: 77}
+      metadata: {p25: 40, p50: 51, p75: 63, p90: 75}
+      security: {p25: 42, p50: 53, p75: 66, p90: 79}
+      semantic_layer: {p25: 38, p50: 50, p75: 62, p90: 74}
+      ai_engineering: {p25: 40, p50: 52, p75: 65, p90: 77}
+      agent_readiness: {p25: 24, p50: 36, p75: 50, p90: 64}
+      ARI: {p25: 26, p50: 38, p75: 51, p90: 65}
+      RRI: {p25: 30, p50: 43, p75: 57, p90: 70}
+
+  - key: cross_industry.any.any
+    industry: unspecified
+    size_band: unspecified
+    platform_mix: any
+    n: 59
+    metrics:
+      composite: {p25: 45, p50: 56, p75: 67, p90: 77}
+      data_quality: {p25: 49, p50: 60, p75: 71, p90: 82}
+      governance: {p25: 48, p50: 59, p75: 71, p90: 81}
+      metadata: {p25: 40, p50: 51, p75: 63, p90: 75}
+      security: {p25: 46, p50: 57, p75: 70, p90: 83}
+      semantic_layer: {p25: 34, p50: 46, p75: 58, p90: 70}
+      ai_engineering: {p25: 37, p50: 49, p75: 62, p90: 74}
+      agent_readiness: {p25: 21, p50: 33, p75: 47, p90: 61}
+      ARI: {p25: 23, p50: 35, p75: 48, p90: 62}
+      RRI: {p25: 28, p50: 40, p75: 54, p90: 67}

@@ -1,0 +1,453 @@
+# EAIRN scoring rubric -- the source of truth for every score EAIRN produces.
+#
+# This file is *data*, not code. It is loaded into the rubric_* tables and the
+# Scoring Engine reads only those tables, so an assessment can be re-run
+# byte-identically against the rubric version it was scored under.
+#
+# To fork a weighting profile (e.g. a partner white-label), copy this file,
+# bump `version`, and load it -- no engine change is required.
+version: "2.0"
+name: EAIRN Readiness Rubric v2.0
+confidence_threshold: 0.80
+
+pillars:
+  - key: data_quality
+    name: Data Quality
+    weight: 0.20
+    core_question: Is the data accurate, complete, fresh, and monitored?
+    rationale: Bad data poisons every downstream AI use case
+    criteria:
+      - key: tier1_monitor_coverage
+        name: Tier-1 monitor coverage (completeness + freshness + validity)
+        check_id: DQ-001
+        weight: 3.0
+        target: 90
+        description: Share of Tier-1 datasets carrying all three baseline check types.
+      - key: rules_as_data
+        name: DQ rules stored as data
+        check_id: DQ-002
+        weight: 1.5
+        target: 90
+        description: Rules in rule tables/contracts rather than buried in pipeline code.
+      - key: monitor_pass_rate
+        name: Monitor pass-rate trend
+        check_id: DQ-003
+        weight: 1.5
+        target: 95
+      - key: incident_mttr
+        name: Tier-1 incident MTTR
+        check_id: DQ-004
+        weight: 2.0
+        target: 90
+      - key: detection_lead_time
+        name: Detection ahead of consumer discovery
+        check_id: DQ-006
+        weight: 1.5
+        target: 90
+      - key: incident_closure
+        name: Incident ownership and closed remediation loops
+        check_id: DQ-005
+        weight: 1.5
+        target: 90
+      - key: alert_precision
+        name: Alert precision (inverse false-positive rate)
+        check_id: DQ-007
+        weight: 1.0
+        target: 90
+
+  - key: governance
+    name: Governance
+    weight: 0.20
+    core_question: Is ownership, policy, and stewardship operational?
+    rationale: Ownership and policy are prerequisites for safe automation
+    criteria:
+      - key: tier1_owner_coverage
+        name: Tier-1 owner coverage
+        check_id: GV-001
+        weight: 3.0
+        target: 95
+      - key: owner_verification
+        name: Ownership verified within 12 months
+        check_id: GV-002
+        weight: 1.5
+        target: 90
+      - key: certification_throughput
+        name: Certification workflow throughput
+        check_id: GV-003
+        weight: 1.5
+        target: 80
+      - key: catalog_curation
+        name: Curation of top-queried assets
+        check_id: GV-004
+        weight: 2.0
+        target: 90
+      - key: classification_agreement
+        name: Catalog/platform classification agreement
+        check_id: GV-005
+        weight: 2.5
+        target: 100
+      - key: glossary_liveness
+        name: Glossary liveness (terms linked to physical columns)
+        check_id: GV-006
+        weight: 1.5
+        target: 80
+      - key: access_reviews
+        name: Access review currency
+        check_id: GV-007
+        weight: 1.0
+        target: 100
+      - key: steward_latency
+        name: Steward response latency
+        check_id: GV-008
+        weight: 1.0
+        target: 80
+      - key: questionnaire_consistency
+        name: Self-reported claims consistent with machine evidence
+        check_id: GV-009
+        weight: 1.0
+        target: 100
+        description: >-
+          Contradictions between the questionnaire and measured evidence are scored findings in
+          their own right -- a confident but wrong picture of the estate misdirects investment.
+
+  - key: metadata
+    name: Metadata
+    weight: 0.15
+    core_question: Can humans and machines discover and understand data?
+    rationale: Discovery and understanding gate both agents and RAG
+    criteria:
+      - key: column_description_coverage
+        name: Column description coverage
+        check_id: MD-001
+        weight: 2.5
+        target: 85
+      - key: table_description_coverage
+        name: Table description coverage
+        check_id: MD-002
+        weight: 1.5
+        target: 90
+      - key: glossary_linkage
+        name: Business glossary linkage
+        check_id: MD-003
+        weight: 1.5
+        target: 70
+      - key: tier1_lineage
+        name: Tier-1 table lineage completeness
+        check_id: MD-004
+        weight: 2.5
+        target: 90
+      - key: column_lineage
+        name: Column-level lineage resolvability
+        check_id: MD-005
+        weight: 2.0
+        target: 75
+      - key: stale_assets
+        name: Stale / orphaned asset hygiene
+        check_id: MD-006
+        weight: 1.0
+        target: 85
+      - key: governed_catalog
+        name: Assets under a governed catalog
+        check_id: MD-007
+        weight: 1.5
+        target: 95
+
+  - key: security
+    name: Security
+    weight: 0.15
+    core_question: Is access least-privilege, classified, and auditable?
+    rationale: Classification and least privilege are hard blockers for agents
+    criteria:
+      - key: pii_classification_coverage
+        name: Sensitive-column classification coverage
+        check_id: SE-001
+        weight: 2.5
+        target: 95
+      - key: classified_protection
+        name: Protection on classified columns
+        check_id: SE-002
+        weight: 3.0
+        target: 100
+      - key: tag_propagation
+        name: Classification propagation across lineage
+        check_id: SE-003
+        weight: 2.0
+        target: 100
+      - key: direct_grants
+        name: Direct-to-user grant hygiene
+        check_id: SE-004
+        weight: 1.5
+        target: 95
+      - key: admin_fanout
+        name: Admin role fan-out
+        check_id: SE-005
+        weight: 1.5
+        target: 95
+      - key: audit_retention
+        name: Audit logging and retention
+        check_id: SE-006
+        weight: 1.5
+        target: 100
+
+  - key: semantic_layer
+    name: Semantic Layer
+    weight: 0.10
+    core_question: Are KPIs and business logic defined once, queryable everywhere?
+    rationale: NL analytics quality is bounded by semantic coverage
+    criteria:
+      - key: kpi_single_definition
+        name: Exactly one definition per certified KPI
+        check_id: SL-001
+        weight: 3.0
+        target: 100
+      - key: certified_model_coverage
+        name: Certified semantic model coverage of report traffic
+        check_id: SL-002
+        weight: 2.0
+        target: 80
+      - key: field_descriptions
+        name: Semantic field description coverage
+        check_id: SL-003
+        weight: 2.0
+        target: 90
+      - key: field_synonyms
+        name: Semantic field synonym coverage
+        check_id: SL-004
+        weight: 1.5
+        target: 70
+      - key: nl_acceptance
+        name: NL answer acceptance rate
+        check_id: SL-005
+        weight: 1.5
+        target: 80
+
+  - key: ai_engineering
+    name: AI Engineering
+    weight: 0.10
+    core_question: Can models be built, tracked, and deployed reproducibly?
+    rationale: Reproducible ML lifecycle underpins production AI
+    criteria:
+      - key: experiment_tracking
+        name: Experiment tracking in use
+        check_id: AE-001
+        weight: 1.5
+        target: 80
+      - key: registered_models
+        name: Production endpoints backed by registered models
+        check_id: AE-002
+        weight: 2.5
+        target: 100
+      - key: training_lineage
+        name: Model-to-training-data lineage
+        check_id: AE-003
+        weight: 2.0
+        target: 90
+      - key: feature_reuse
+        name: Feature store reuse
+        check_id: AE-004
+        weight: 1.0
+        target: 60
+      - key: promotion_gates
+        name: Human-gated model promotion
+        check_id: AE-005
+        weight: 2.0
+        target: 100
+      - key: gateway_governance
+        name: Gateway-governed external model endpoints
+        check_id: AE-006
+        weight: 2.0
+        target: 100
+
+  - key: agent_readiness
+    name: Agent Readiness
+    weight: 0.10
+    core_question: Can agents discover, trust, explain, and act safely?
+    rationale: Composite of the other pillars, plus action-safety specifics
+    criteria:
+      - key: discover_surface
+        name: Machine-readable metadata surface
+        check_id: AG-001
+        weight: 2.0
+        target: 85
+      - key: runtime_trust
+        name: Runtime-queryable trust signals
+        check_id: AG-002
+        weight: 2.0
+        target: 90
+      - key: explainability
+        name: Lineage and definition traceability for citations
+        check_id: AG-003
+        weight: 1.5
+        target: 80
+      - key: scoped_entitlements
+        name: Per-agent scoped entitlements
+        check_id: AG-004
+        weight: 3.0
+        target: 100
+      - key: write_gates
+        name: Approval gates on write actions
+        check_id: AG-005
+        weight: 2.0
+        target: 100
+      - key: action_audit
+        name: Attributable, replayable action trails
+        check_id: AG-006
+        weight: 2.5
+        target: 100
+      - key: compositional_control
+        name: Compositional entitlement reconciliation
+        check_id: AG-007
+        weight: 2.0
+        target: 100
+
+  - key: rag_readiness
+    name: RAG Readiness
+    weight: 0.0
+    scoring_mode: overlay
+    core_question: Is content coverage, chunking, vectors, and ACL filtering in place?
+    rationale: Scored separately as the RAG Readiness Index; not double-counted in the composite
+    criteria:
+      - key: content_coverage
+        name: Authoritative content indexed
+        check_id: RG-001
+        weight: 2.0
+        target: 85
+      - key: chunk_metadata
+        name: Chunk-level filterable metadata
+        check_id: RG-002
+        weight: 2.0
+        target: 85
+      - key: chunking_readiness
+        name: Format census / chunkability
+        check_id: RG-003
+        weight: 1.5
+        target: 80
+      - key: vector_discipline
+        name: Embedding refresh SLA vs. content change rate
+        check_id: RG-004
+        weight: 2.0
+        target: 90
+      - key: acl_propagation
+        name: Permission-aware retrieval
+        check_id: RG-005
+        weight: 3.0
+        target: 100
+      - key: groundedness_eval
+        name: Groundedness measurement in place
+        check_id: RG-006
+        weight: 1.5
+        target: 80
+
+# Hard-blocker overrides. These cap a score regardless of the arithmetic --
+# and, being rubric data, they are themselves versioned and auditable.
+overrides:
+  - key: unprotected_classified_columns
+    check_id: SE-002
+    condition: failing_targets_above
+    threshold: 0
+    cap_scope: security
+    cap_value: 49
+    rationale: >-
+      Classified columns without masking, redaction or policy-tag protection are an
+      unmitigated disclosure path; Security cannot exceed AI-Emerging while any exist.
+  - key: no_agent_action_audit
+    check_id: AG-006
+    condition: failing_targets_above
+    threshold: 0
+    cap_scope: agent_readiness
+    cap_value: 39
+    rationale: >-
+      An agent whose actions cannot be attributed and replayed cannot be operated
+      safely on enterprise data, whatever the rest of the estate looks like.
+  - key: rag_acl_not_enforced
+    check_id: RG-005
+    condition: failing_targets_above
+    threshold: 0
+    cap_scope: RRI
+    cap_value: 39
+    rationale: >-
+      Classified content in an index without retrieval-time filter enforcement is a
+      direct disclosure channel; the RAG index cannot be considered viable.
+
+indices:
+  ARI:
+    name: Agent Readiness Index
+    dimensions:
+      - key: discover
+        name: Discover
+        weight: 1.0
+        description: Machine-readable metadata surface for tool selection
+        check_ids: [AG-001, MD-002]
+      - key: trust
+        name: Trust
+        weight: 1.0
+        description: Freshness, DQ and certification signals visible to agents
+        check_ids: [AG-002, DQ-001]
+      - key: explain
+        name: Explain
+        weight: 1.0
+        description: Lineage and definition traceability for agent citations
+        check_ids: [AG-003, MD-005, SL-001]
+      - key: act_safely
+        name: Act Safely
+        weight: 1.5
+        description: Entitlements, guardrails and blast-radius control
+        check_ids: [AG-004, AG-005, AG-007]
+      - key: audit
+        name: Audit
+        weight: 1.5
+        description: Attributable, replayable action trails
+        check_ids: [AG-006, SE-006]
+  RRI:
+    name: RAG Readiness Index
+    dimensions:
+      - key: content_coverage
+        name: Content Coverage
+        weight: 1.0
+        description: Corpus completeness for target use cases
+        check_ids: [RG-001]
+      - key: metadata_quality
+        name: Metadata Quality
+        weight: 1.0
+        description: Chunk-level filterable attributes
+        check_ids: [RG-002]
+      - key: chunking_readiness
+        name: Chunking Readiness
+        weight: 0.75
+        description: Structure amenable to chunking
+        check_ids: [RG-003]
+      - key: vector_readiness
+        name: Vector Readiness
+        weight: 1.0
+        description: Embedding infrastructure and refresh discipline
+        check_ids: [RG-004]
+      - key: security
+        name: Security
+        weight: 1.5
+        description: Permission-aware retrieval
+        check_ids: [RG-005]
+      - key: evaluation
+        name: Evaluation
+        weight: 0.75
+        description: Groundedness measurement in place
+        check_ids: [RG-006]
+
+grade_bands:
+  composite:
+    - {min: 90, max: 100, grade: AI-Native, interpretation: "Estate can support autonomous agents on Tier-1 data with monitoring"}
+    - {min: 75, max: 89.999, grade: AI-Ready, interpretation: "Copilots and constrained agents viable; targeted gaps remain"}
+    - {min: 60, max: 74.999, grade: AI-Capable, interpretation: "Pilots viable on curated slices; scale blocked by named gaps"}
+    - {min: 40, max: 59.999, grade: AI-Emerging, interpretation: "Foundational work required before credible GenAI deployment"}
+    - {min: 0, max: 39.999, grade: AI-At-Risk, interpretation: "AI initiatives on this estate carry material delivery and safety risk"}
+  ARI:
+    - {min: 90, max: 100, grade: Agent-Native, interpretation: "Autonomous agents can operate on Tier-1 data with monitoring"}
+    - {min: 75, max: 89.999, grade: Agent-Ready, interpretation: "Constrained agents viable with named guardrails"}
+    - {min: 60, max: 74.999, grade: Agent-Capable, interpretation: "Read-only agents viable on curated slices"}
+    - {min: 40, max: 59.999, grade: Agent-Emerging, interpretation: "Safety foundations required before agent deployment"}
+    - {min: 0, max: 39.999, grade: Agent-At-Risk, interpretation: "Agent actions cannot be scoped, explained or audited"}
+  RRI:
+    - {min: 90, max: 100, grade: RAG-Native, interpretation: "Permission-safe, evaluated retrieval at estate scale"}
+    - {min: 75, max: 89.999, grade: RAG-Ready, interpretation: "Production RAG viable on the covered corpora"}
+    - {min: 60, max: 74.999, grade: RAG-Capable, interpretation: "Pilots viable on curated corpora"}
+    - {min: 40, max: 59.999, grade: RAG-Emerging, interpretation: "Content and metadata work required before retrieval is trustworthy"}
+    - {min: 0, max: 39.999, grade: RAG-At-Risk, interpretation: "Retrieval would surface stale or unauthorised content"}
