@@ -130,15 +130,20 @@ defaulting to one: no view ever shows an estate the reader did not choose.
 
 ### Live Demo — assess an estate shaped like yours
 
-`/demo` is the tab to open in front of a customer. They choose:
+`/demo` is the tab to open in front of a customer. They choose, in order:
 
+- **industry first** — which then filters the **organization** picker to the estates that industry
+  actually has on the Organizations tab, each shown with its current score and grade. Picking one
+  prefills the **size band** it is assessed at, which they can change to see the other peer cohort;
+  or they pick *Another organization* and type a name. Running as an existing organization creates a
+  separate `demo-` tenant named `<name> (demo run)` — the reference assessment is never overwritten;
 - **enterprise data platform** — Snowflake, Databricks, Microsoft Fabric, BigQuery, Redshift, Oracle
   Exadata or Teradata;
 - **data governance tool** — Collibra, Alation, Informatica CDGC, Atlan, Purview, or platform-native
   only;
 - **data quality tooling** — Monte Carlo, Great Expectations, Soda, Ataccama, Snowflake-native,
   Oracle EDQ, or platform-native only;
-- **industry, size band and governance maturity**, plus a seed;
+- **governance maturity**, plus a seed;
 - **assessment scope** — leave the agent estate, retrieval corpora, ML assets or semantic layer out
   and those checks are reported as *not measured*, exactly as a real estate without that surface
   produces. They are never scored as zero.

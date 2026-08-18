@@ -213,14 +213,14 @@ def get_questionnaire() -> dict[str, Any]:
 
 
 @router.get("/demo/options", tags=["demo"])
-def get_demo_options() -> dict[str, Any]:
+def get_demo_options(session: Session = Depends(get_session)) -> dict[str, Any]:
     """The platforms, tools, scopes and profiles a live demo may choose from.
 
     These are display catalogs for the synthetic generator. Which connectors can
     read a *real* estate today is a different question, answered by
     `GET /api/connectors` with a roadmap phase per connector.
     """
-    return {**demo_options(), "advisor": advisor_mode(), "synthetic": True}
+    return {**demo_options(session), "advisor": advisor_mode(), "synthetic": True}
 
 
 @router.post("/demo/run", tags=["demo"], status_code=201)

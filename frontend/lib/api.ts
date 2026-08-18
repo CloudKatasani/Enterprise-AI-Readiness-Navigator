@@ -209,7 +209,20 @@ export interface DemoOption {
   note: string;
 }
 
+/** One assessed organization, as the Organizations tab lists it. */
+export interface DemoOrganisation {
+  key: string;
+  name: string;
+  industry: string;
+  industry_label: string;
+  size_band: string;
+  composite_score: number | null;
+  grade: string | null;
+  is_demo: boolean;
+}
+
 export interface DemoOptions {
+  organisations: DemoOrganisation[];
   platforms: DemoOption[];
   governance_tools: DemoOption[];
   dq_tools: DemoOption[];

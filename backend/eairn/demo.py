@@ -32,7 +32,7 @@ from eairn.connectors.profiles import (
     DemoOption,
     option_keys,
 )
-from eairn.dashboard import industry_label
+from eairn.dashboard import industry_label, portfolio
 from eairn.models import Assessment, Evidence, Recommendation, Score, Tenant
 from eairn.pipeline import run_assessment
 
@@ -59,9 +59,41 @@ def _options(catalog: tuple[DemoOption, ...]) -> list[dict[str, str]]:
     return [{"key": o.key, "label": o.label, "note": o.note} for o in catalog]
 
 
-def demo_options() -> dict[str, Any]:
-    """Everything the demo form may offer, straight from the profile catalogs."""
+def portfolio_organisations(session: Session) -> list[dict[str, Any]]:
+    """The assessed organizations, as the Organizations tab lists them.
+
+    The demo form offers these so an audience picks a real, comparable estate
+    rather than inventing a name. Running one produces a *separate* demo tenant:
+    a reference estate is never overwritten by a demo, which is why the key is
+    namespaced and the reference snapshot keeps its own history.
+    """
+    entries: list[dict[str, Any]] = []
+    for industry in portfolio(session):
+        for org in industry["organisations"]:
+            entries.append(
+                {
+                    "key": org["tenant_key"],
+                    "name": org["tenant"],
+                    "industry": industry["industry"],
+                    "industry_label": industry["industry_label"],
+                    "size_band": org["size_band"],
+                    "composite_score": org["composite_score"],
+                    "grade": org["grade"],
+                    "is_demo": org["tenant_key"].startswith(DEMO_PREFIX),
+                }
+            )
+    return entries
+
+
+def demo_options(session: Session | None = None) -> dict[str, Any]:
+    """Everything the demo form may offer, straight from the profile catalogs.
+
+    With a session, the assessed organizations are included so the form can be
+    industry-first: choose an industry, then one of the organizations actually
+    in it, then the size band.
+    """
     return {
+        "organisations": portfolio_organisations(session) if session is not None else [],
         "platforms": _options(PLATFORM_CATALOG),
         "governance_tools": _options(GOVERNANCE_TOOL_CATALOG),
         "dq_tools": _options(DQ_TOOL_CATALOG),
@@ -168,18 +200,35 @@ def _reset_tenant_history(session: Session, tenant: Tenant) -> None:
     session.flush()
 
 
+def _display_name(session: Session, spec: DemoSpec) -> str:
+    """Name the demo estate so it cannot be mistaken for the reference one.
+
+    The demo form offers the assessed organizations by name, so a run is often
+    named after an estate that already exists. That run is a *separate* tenant
+    with its own snapshot -- the reference assessment is untouched -- and two
+    identically named rows in the portfolio would hide that. A freely typed name
+    keeps whatever the user typed.
+    """
+    name = spec.organisation.strip()
+    clash = session.scalar(
+        select(Tenant).where(Tenant.name == name, Tenant.key != spec.tenant_key)
+    )
+    return f"{name} (demo run)" if clash is not None else name
+
+
 def run_demo(session: Session, spec: DemoSpec) -> Assessment:
     """Harvest -> evaluate -> score -> recommend -> narrate, on a synthetic estate."""
     spec.validate()
 
     tenant = session.scalar(select(Tenant).where(Tenant.key == spec.tenant_key))
+    display_name = _display_name(session, spec)
     if tenant is None:
-        tenant = Tenant(key=spec.tenant_key, name=spec.organisation.strip())
+        tenant = Tenant(key=spec.tenant_key, name=display_name)
         session.add(tenant)
         session.flush()
     else:
         _reset_tenant_history(session, tenant)
-    tenant.name = spec.organisation.strip()
+    tenant.name = display_name
     tenant.industry = spec.industry
     tenant.size_band = spec.size_band
 

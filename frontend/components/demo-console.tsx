@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { runDemoAction, type DemoActionState } from "@/app/demo/actions";
-import type { DemoOption, DemoOptions } from "@/lib/api";
+import type { DemoOption, DemoOptions, DemoOrganisation } from "@/lib/api";
 
 /** The pipeline the run actually executes, in the order it executes it. */
 const STAGES = [
@@ -43,11 +43,47 @@ function Field({
   );
 }
 
+/** Sentinel for "not one of the assessed organizations — I'll type a name". */
+const NEW_ORGANISATION = "__new__";
+
 export function DemoConsole({ options }: { options: DemoOptions }) {
   const [state, formAction, isPending] = useActionState<DemoActionState, FormData>(runDemoAction, {
     error: null,
   });
   const [stage, setStage] = useState(0);
+
+  const defaults = options.defaults;
+  const inIndustry = (industry: string) =>
+    options.organisations.filter((org) => org.industry === industry);
+
+  // Industry first, then the organizations actually in it, then the size band.
+  const [industry, setIndustry] = useState(defaults.industry);
+  const [orgKey, setOrgKey] = useState(
+    () => inIndustry(defaults.industry)[0]?.key ?? NEW_ORGANISATION,
+  );
+  const [sizeBand, setSizeBand] = useState(
+    () => inIndustry(defaults.industry)[0]?.size_band ?? defaults.size_band,
+  );
+
+  const organisations = inIndustry(industry);
+  const selectedOrg: DemoOrganisation | undefined = organisations.find((o) => o.key === orgKey);
+
+  const chooseIndustry = (next: string) => {
+    setIndustry(next);
+    // The organization list is industry-scoped, so the selection has to move
+    // with it -- otherwise the form would submit a name from another industry.
+    const first = inIndustry(next)[0];
+    setOrgKey(first?.key ?? NEW_ORGANISATION);
+    setSizeBand(first?.size_band ?? defaults.size_band);
+  };
+
+  const chooseOrganisation = (key: string) => {
+    setOrgKey(key);
+    const org = organisations.find((o) => o.key === key);
+    // Prefill the band the organization is actually assessed at; the audience
+    // can still change it, which is the point of asking.
+    if (org) setSizeBand(org.size_band);
+  };
 
   useEffect(() => {
     if (!isPending) {
@@ -63,14 +99,76 @@ export function DemoConsole({ options }: { options: DemoOptions }) {
     return () => clearInterval(timer);
   }, [isPending]);
 
-  const defaults = options.defaults;
-
   return (
     <form action={formAction} className="demo-form">
       <section className="card">
-        <h3 style={{ marginTop: 0 }}>1 · The organization</h3>
+        <h3 style={{ marginTop: 0 }}>1 · Industry and organization</h3>
         <div className="field-grid">
           <label className="field">
+            <span className="field-label">Industry</span>
+            <select
+              name="industry"
+              value={industry}
+              onChange={(event) => chooseIndustry(event.target.value)}
+            >
+              {options.industries.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">
+              Decides business domains and where regulated data sits — and which organizations you
+              can pick next
+            </span>
+          </label>
+
+          <label className="field">
+            <span className="field-label">Organization</span>
+            <select
+              value={orgKey}
+              onChange={(event) => chooseOrganisation(event.target.value)}
+              name={orgKey === NEW_ORGANISATION ? undefined : "organisation_key"}
+            >
+              {organisations.map((org) => (
+                <option key={org.key} value={org.key}>
+                  {org.name}
+                  {org.composite_score != null ? ` — ${org.composite_score.toFixed(1)} ${org.grade}` : ""}
+                  {org.is_demo && !org.name.includes("(demo run)") ? " (demo run)" : ""}
+                </option>
+              ))}
+              <option value={NEW_ORGANISATION}>Another organization — enter a name…</option>
+            </select>
+            <span className="field-hint">
+              {organisations.length
+                ? `${organisations.length} assessed in this industry`
+                : "None assessed in this industry yet"}
+            </span>
+          </label>
+
+          <label className="field">
+            <span className="field-label">Size band</span>
+            <select
+              name="size_band"
+              value={sizeBand}
+              onChange={(event) => setSizeBand(event.target.value)}
+            >
+              {options.size_bands.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">
+              {selectedOrg
+                ? `Assessed as ${selectedOrg.size_band.replace(/_/g, " ")} — change it to see the other cohort`
+                : "Selects the peer cohort for benchmarking"}
+            </span>
+          </label>
+        </div>
+
+        {orgKey === NEW_ORGANISATION ? (
+          <label className="field" style={{ marginTop: "0.9rem", maxWidth: "26rem" }}>
             <span className="field-label">Organization name</span>
             <input
               type="text"
@@ -78,24 +176,23 @@ export function DemoConsole({ options }: { options: DemoOptions }) {
               defaultValue={defaults.organisation}
               maxLength={120}
               required
+              autoFocus
             />
             <span className="field-hint">Appears on every view of the result</span>
           </label>
-          <Field
-            label="Industry"
-            name="industry"
-            options={options.industries}
-            defaultValue={defaults.industry}
-            hint="Decides business domains and where regulated data sits"
-          />
-          <Field
-            label="Size band"
-            name="size_band"
-            options={options.size_bands}
-            defaultValue={defaults.size_band}
-            hint="Selects the peer cohort for benchmarking"
-          />
-        </div>
+        ) : (
+          <>
+            <input type="hidden" name="organisation" value={selectedOrg?.name ?? ""} />
+            {selectedOrg ? (
+              <p className="muted" style={{ fontSize: "0.84rem", margin: "0.7rem 0 0" }}>
+                <strong>{selectedOrg.name}</strong> scores{" "}
+                {selectedOrg.composite_score?.toFixed(1) ?? "--"} today ({selectedOrg.grade}). This
+                run assesses a fresh estate under that name and lands as its own demo result — the
+                organization&apos;s existing assessment is left exactly as it is.
+              </p>
+            ) : null}
+          </>
+        )}
       </section>
 
       <section className="card">

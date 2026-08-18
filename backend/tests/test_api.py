@@ -539,3 +539,59 @@ def test_action_plan_only_names_work_the_evidence_supports(
     # The projection is the roadmap's measured impact, not an aspiration.
     assert plan["projection"]["projected_composite"] >= plan["projection"]["current_composite"]
     assert plan["horizons"]
+
+
+def test_demo_options_offer_the_assessed_organizations_by_industry(
+    client: TestClient, demo_snapshot: str
+) -> None:
+    """The form is industry-first, so its organizations must match the portfolio.
+
+    A picker showing an organization the Organizations tab does not have -- or
+    filing one under the wrong industry -- would make the demo disagree with the
+    product's own front page.
+    """
+    options = client.get("/api/demo/options").json()
+    portfolio = client.get("/api/portfolio").json()["industries"]
+
+    expected = {
+        (industry["industry"], org["tenant"], org["size_band"])
+        for industry in portfolio
+        for org in industry["organisations"]
+    }
+    actual = {(o["industry"], o["name"], o["size_band"]) for o in options["organisations"]}
+    assert actual == expected
+
+    industry_keys = {i["key"] for i in options["industries"]}
+    assert {o["industry"] for o in options["organisations"]} <= industry_keys
+
+
+def test_demo_run_for_an_existing_organization_leaves_it_untouched(
+    client: TestClient, demo_snapshot: str
+) -> None:
+    """Running the demo as a portfolio organization must not overwrite it."""
+    client.post(
+        "/api/tenants",
+        json={
+            "key": "reference-estate",
+            "name": "Reference Estate",
+            "industry": "utilities",
+            "size_band": "enterprise",
+        },
+    )
+    client.post("/api/assessments", json={"tenant_key": "reference-estate", "label": "baseline"})
+    before = client.get("/api/assessments").json()["assessments"]
+    reference = next(a for a in before if a["tenant_key"] == "reference-estate")
+
+    demo = client.post(
+        "/api/demo/run",
+        json={"organisation": "Reference Estate", "industry": "utilities", "maturity": "leading"},
+    ).json()
+
+    assert demo["tenant_key"] == "demo-reference-estate"
+    # Named apart, so two rows in the portfolio cannot be confused.
+    assert demo["tenant"] == "Reference Estate (demo run)"
+
+    after = client.get("/api/assessments").json()["assessments"]
+    still_there = next(a for a in after if a["tenant_key"] == "reference-estate")
+    assert still_there["snapshot_id"] == reference["snapshot_id"]
+    assert still_there["composite_score"] == reference["composite_score"]
