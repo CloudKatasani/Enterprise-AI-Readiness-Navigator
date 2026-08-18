@@ -61,7 +61,11 @@ Silverpine Health System     healthcare                  73.9  AI-Capable     79
 
 Seed one estate on its own with `--only <key>` (for example `--only anvil-grid`).
 
-Run the tests with `cd backend && .venv/bin/python -m pytest`.
+Run the tests with `cd backend && .venv/bin/pip install -r requirements-dev.txt` then
+`.venv/bin/python -m pytest` — `requirements.txt` alone carries no test runner.
+
+[RUNNING.md](RUNNING.md) covers the same ground in more detail: configuration, custom ports,
+production mode, resetting the database, and what to do when a page says the API is unreachable.
 
 ---
 
