@@ -1,0 +1,964 @@
+# Integration guide: what a deployment needs to replace the demo estate with a
+# real one.
+#
+# The connector registry already publishes the contract — capabilities, the
+# least-privilege permission manifest, and the exact statement or endpoint
+# catalog. What it cannot publish is the operational detail an integrator needs
+# to actually configure a connection: which credential to mint, which
+# configuration keys to set, which hostnames the container must be allowed to
+# reach, and how stale the source metadata is when it arrives.
+#
+# That detail lives here rather than in code for the same reason the rubric does:
+# a deployment can correct a hostname, add an auth mode or pin a doc link without
+# an engine change. Everything structural — the endpoints EAIRN calls, the
+# grants it asks for, the checks a connector unlocks — is read from the registry
+# and the check library at request time, so this file cannot drift into
+# contradicting what the code does.
+#
+# Rate limits and freshness windows change on the vendor's schedule, not ours.
+# Each entry names the vendor document that is authoritative; treat the numbers
+# here as sizing guidance to be confirmed there before a production rollout.
+
+version: "1"
+
+intro:
+  headline: >
+    Every number in this product comes from a read-only metadata call against a
+    platform you already run. This page is the wiring diagram for making those
+    calls real.
+  body: |
+    EAIRN never reads customer rows. It reads catalog metadata — table and
+    column inventories, tags and classifications, policy attachments, lineage
+    edges, grant graphs, aggregated usage counts, data-quality monitor state,
+    model registry entries, agent and retrieval configuration — and scores the
+    estate those artefacts describe.
+
+    A connector is therefore a small, boring thing: a set of catalogued read-only
+    statements or HTTP calls, a least-privilege principal that can issue them,
+    and a normaliser that maps the results onto the canonical metadata model.
+    Bringing a platform online is three steps: provision the principal from the
+    permission manifest, put its secret somewhere the runtime can read, and
+    record a connection.
+
+    Until a live driver ships for a given platform, the same assessment runs from
+    a canonical metadata export. That path is not a downgrade in rigour — it
+    produces the same evidence records and the same score — it only changes who
+    performs the extraction.
+
+# --------------------------------------------------------------------------- #
+# Deployment-level configuration, independent of any one connector.
+# --------------------------------------------------------------------------- #
+
+hosting:
+  summary: >
+    The backend is a single stateless FastAPI process plus a relational database.
+    Nothing about it is hyperscaler-specific: it needs a Postgres URL, outbound
+    HTTPS to the platforms being assessed, and a way to read secrets.
+  runtime:
+    - name: API process
+      detail: >
+        uvicorn eairn.main:app behind whatever ingress the platform provides.
+        Stateless and horizontally scalable; all state is in the database.
+    - name: Harvest work
+      detail: >
+        Assessment runs are the only long-lived operation. On a container
+        platform run them as a job or task rather than inside a request, and give
+        the task egress to the platforms it harvests.
+    - name: Database
+      detail: >
+        Postgres in production. SQLite is the zero-dependency default so a
+        laptop or CI run needs no external service, and is not a supported
+        production target.
+  secrets:
+    - platform: AWS
+      service: Secrets Manager or SSM Parameter Store
+      detail: >
+        Inject at task start as environment variables, or read at connection
+        time by the runtime. Prefer IAM roles for the AWS-native pieces (RDS IAM
+        auth, S3 for canonical bundles) so fewer static secrets exist at all.
+    - platform: Azure
+      service: Key Vault
+      detail: >
+        Give the container app a managed identity with Key Vault Secrets User,
+        and use that same identity as the Entra application for Fabric and
+        Purview where tenant policy allows.
+    - platform: GCP
+      service: Secret Manager
+      detail: >
+        For BigQuery prefer workload identity federation over a service-account
+        key: the connector authenticates as the workload with no long-lived
+        credential to store or rotate.
+  network:
+    summary: >
+      Egress is per connector and is listed on each card below. The union of the
+      hosts for the connectors you enable is the entire allowlist the runtime
+      needs; nothing else is called out to.
+    notes:
+      - Every call is outbound HTTPS on 443, except Oracle, which is a database port.
+      - >
+        Private connectivity (PrivateLink, Private Endpoint, Private Service
+        Connect) is supported by substituting the private hostname in the
+        connector's host configuration; the statement and endpoint catalogs are
+        unchanged.
+      - >
+        No inbound connectivity from a platform to EAIRN is required. There are
+        no webhooks and no callbacks.
+  environment:
+    intro: >
+      Backend settings are read from the environment with the EAIRN_ prefix, or
+      from a .env file next to the process. These are the ones a hosted
+      deployment normally sets.
+    variables:
+      - name: EAIRN_DATABASE_URL
+        example: postgresql+psycopg://eairn:***@db.internal:5432/eairn
+        detail: SQLAlchemy URL. Defaults to a local SQLite file for dev and CI.
+      - name: EAIRN_DEFAULT_RUBRIC_VERSION
+        example: "2.0"
+        detail: Rubric new assessments run against when the caller does not pin one.
+      - name: EAIRN_CONFIDENCE_THRESHOLD
+        example: "0.80"
+        detail: >
+          Findings below this confidence never move a score; they queue for a
+          human reviewer instead.
+      - name: EAIRN_ALLOW_ROW_SAMPLING
+        example: "false"
+        detail: >
+          Off by default. Even when enabled, per-dataset authorization records
+          are still required before any sampling occurs.
+      - name: EAIRN_ANTHROPIC_API_KEY
+        example: sk-ant-***
+        detail: >
+          Optional. Without it the advisor falls back to deterministic,
+          evidence-grounded templates and the product stays fully functional.
+      - name: EAIRN_CORS_ORIGINS
+        example: https://eairn.example.com
+        detail: Comma-separated origins permitted to call the API from a browser.
+  sequence:
+    - step: Provision the principal
+      detail: >
+        Run the grants from the connector's permission manifest verbatim. They
+        are published so a customer security review can approve them before
+        anything is connected.
+    - step: Store the credential
+      detail: >
+        Put the secret in the platform's secret store and expose it to the
+        runtime. Nothing in the connector configuration that EAIRN persists or
+        displays contains a credential.
+    - step: Record the connection
+      detail: >
+        POST /api/tenants for the organisation, then create a connection with
+        the connector key and its non-secret configuration.
+    - step: Run an assessment
+      detail: >
+        POST /api/assessments with the tenant key and the connectors to run.
+        The response carries the snapshot id every view is addressed by.
+    - step: Verify reproducibility
+      detail: >
+        GET /api/assessments/{snapshot}/verify re-scores the stored evidence
+        and compares hashes. A snapshot that does not replay byte-identically is
+        a bug, not a rounding difference.
+
+# --------------------------------------------------------------------------- #
+# Per-connector integration detail.
+# --------------------------------------------------------------------------- #
+
+connectors:
+
+  demo:
+    summary: >
+      Deterministic synthetic estate. No network, no credential, no external
+      dependency — the seed is the entire configuration.
+    vendor_docs: []
+    auth:
+      - mode: none
+        detail: Generates an estate in-process from a numeric seed.
+    config_fields:
+      - key: seed
+        required: false
+        secret: false
+        example: "20260817"
+        detail: Same seed and options reproduce the same estate exactly.
+    egress: []
+    freshness: Instant; nothing is fetched.
+    pagination: Not applicable.
+    limits: Not applicable.
+
+  snowflake:
+    summary: >
+      The reference implementation, and the one to read first when writing a new
+      connector. Runs entirely inside SNOWFLAKE.ACCOUNT_USAGE and
+      INFORMATION_SCHEMA; the role it needs cannot read a customer table.
+    vendor_docs:
+      - title: ACCOUNT_USAGE views and their latency
+        url: https://docs.snowflake.com/en/sql-reference/account-usage
+      - title: Key-pair authentication and rotation
+        url: https://docs.snowflake.com/en/user-guide/key-pair-auth
+      - title: ACCESS_HISTORY
+        url: https://docs.snowflake.com/en/sql-reference/account-usage/access_history
+    auth:
+      - mode: Key-pair (RSA, JWT)
+        recommended: true
+        detail: >
+          A dedicated service user with an RSA key pair. Preferred everywhere:
+          no password to rotate through a human, and it satisfies accounts that
+          enforce MFA on interactive users.
+      - mode: OAuth client credentials
+        detail: >
+          Where the account already federates machine identities through an
+          external authorization server.
+    config_fields:
+      - key: account
+        required: true
+        secret: false
+        example: myorg-myaccount
+        detail: Organisation-account identifier, not the full hostname.
+      - key: user
+        required: true
+        secret: false
+        example: EAIRN_SVC
+        detail: Dedicated service user. Never a person's login.
+      - key: role
+        required: true
+        secret: false
+        example: EAIRN_READONLY
+        detail: >
+          Preflight refuses ACCOUNTADMIN, SECURITYADMIN and SYSADMIN outright --
+          an assessment that needed an admin role would be evidence of a
+          misconfiguration, not a convenience.
+      - key: warehouse
+        required: true
+        secret: false
+        example: EAIRN_WH
+        detail: XS is sufficient. The queries are metadata scans, not data scans.
+      - key: private_key_path
+        required: true
+        secret: true
+        example: /run/secrets/eairn_snowflake_key.p8
+        detail: >
+          Path the runtime can read. Mount from the platform's secret store
+          rather than baking into an image.
+      - key: fixture
+        required: false
+        secret: false
+        example: /srv/fixtures/account_usage.json
+        detail: >
+          Rows in ACCOUNT_USAGE shape, read instead of executing the catalog.
+          The same normaliser runs, so the tested path is the live path.
+    egress:
+      - host: "<account>.snowflakecomputing.com"
+        port: 443
+        detail: Query endpoint. Substitute the PrivateLink hostname where used.
+      - host: ocsp.snowflakecomputing.com
+        port: 443
+        detail: Certificate revocation checking by the driver.
+    freshness: >
+      ACCOUNT_USAGE views are latent by design — roughly 45 minutes to 3 hours
+      depending on the view, with ACCESS_HISTORY among the slowest. Usage is
+      rolled up over a 90-day lookback, so a fresh account produces a thin usage
+      picture until it has that history.
+    pagination: >
+      None; the driver streams result sets. Views absent on an edition or release
+      track degrade to a warning rather than failing the harvest.
+    limits: >
+      Bounded by the warehouse, not by an API quota. A full catalog runs in
+      minutes on XS for a large account.
+
+  databricks:
+    summary: >
+      Unity Catalog system tables plus the workspace API. Lineage, audit and
+      billing all arrive as queryable tables, which makes this the richest
+      single-source harvest after Snowflake.
+    vendor_docs:
+      - title: System tables reference
+        url: https://docs.databricks.com/aws/en/admin/system-tables/
+      - title: OAuth machine-to-machine authentication
+        url: https://docs.databricks.com/aws/en/dev-tools/auth/oauth-m2m
+      - title: Lineage system tables
+        url: https://docs.databricks.com/aws/en/admin/system-tables/lineage
+    auth:
+      - mode: OAuth M2M (service principal)
+        recommended: true
+        detail: >
+          Client id and secret for a workspace service principal. Tokens are
+          short-lived and minted per run.
+      - mode: Personal access token
+        detail: >
+          Works, but ties the assessment to an individual's lifecycle. Acceptable
+          for a pilot, not for a standing deployment.
+    config_fields:
+      - key: host
+        required: true
+        secret: false
+        example: https://dbc-1234abcd-5678.cloud.databricks.com
+        detail: Workspace URL. Cloud-specific; see the egress list.
+      - key: http_path
+        required: true
+        secret: false
+        example: /sql/1.0/warehouses/abc123def456
+        detail: SQL warehouse the system-table queries execute on.
+      - key: client_id
+        required: true
+        secret: false
+        example: 11111111-2222-3333-4444-555555555555
+        detail: Service principal application id.
+      - key: client_secret
+        required: true
+        secret: true
+        example: dose***
+        detail: OAuth secret for the service principal.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/databricks.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: "<workspace>.cloud.databricks.com"
+        port: 443
+        detail: AWS workspaces.
+      - host: "<workspace>.azuredatabricks.net"
+        port: 443
+        detail: Azure workspaces.
+      - host: "<workspace>.gcp.databricks.com"
+        port: 443
+        detail: GCP workspaces.
+    freshness: >
+      System tables lag ingestion modestly. Lineage tables carry a bounded
+      retention window (90 days at time of writing), so an estate assessed
+      shortly after enabling them shows less lineage than it actually has.
+    pagination: >
+      SQL result streaming for system tables; the workspace API pages by token
+      for model registry and serving endpoints.
+    limits: >
+      Workspace API rate limits apply per endpoint. The harvest issues tens of
+      calls, not thousands, so limits are not normally reached.
+    preconditions:
+      - System schemas must be enabled on the metastore; system.access and
+        system.billing are opt-in per metastore, not on by default.
+      - >
+        Tables still in hive_metastore are detected by catalog enumeration.
+        That is a finding, not an error — ungoverned residue is exactly what the
+        governance pillar is looking for.
+
+  fabric:
+    summary: >
+      Tenant-level metadata through the Fabric admin API, Power BI admin API,
+      Microsoft Graph and Purview. Reads workspaces, items, semantic models,
+      sensitivity labels and DLP policy — never report or dataset content.
+    vendor_docs:
+      - title: Fabric admin REST API
+        url: https://learn.microsoft.com/en-us/rest/api/fabric/admin/
+      - title: Power BI admin API and throttling
+        url: https://learn.microsoft.com/en-us/rest/api/power-bi/admin
+      - title: Purview data plane REST API
+        url: https://learn.microsoft.com/en-us/rest/api/purview/
+    auth:
+      - mode: Entra ID application (client credentials)
+        recommended: true
+        detail: >
+          Tenant-level admin scopes require admin consent. Tenant.Read.All is
+          read-only but broad; expect this to be the grant a security review
+          spends its time on.
+      - mode: Managed identity
+        detail: >
+          Where EAIRN runs in the same tenant on Azure, the container's managed
+          identity can be the application principal, removing the client secret
+          entirely.
+    config_fields:
+      - key: tenant_id
+        required: true
+        secret: false
+        example: 00000000-1111-2222-3333-444444444444
+        detail: Entra ID tenant.
+      - key: client_id
+        required: true
+        secret: false
+        example: 55555555-6666-7777-8888-999999999999
+        detail: Application (client) id of the registered app.
+      - key: client_secret
+        required: true
+        secret: true
+        example: "***"
+        detail: Not needed when authenticating as a managed identity.
+      - key: purview_account
+        required: false
+        secret: false
+        example: contoso-purview
+        detail: >
+          Enables the Purview half of the harvest — scan coverage,
+          classifications and glossary linkage.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/fabric.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: login.microsoftonline.com
+        port: 443
+        detail: Token acquisition.
+      - host: api.fabric.microsoft.com
+        port: 443
+        detail: Workspaces, items, domains, sensitivity labels.
+      - host: api.powerbi.com
+        port: 443
+        detail: Semantic model inventory through the admin API.
+      - host: graph.microsoft.com
+        port: 443
+        detail: Directory lookups and DLP policy.
+      - host: "<account>.purview.azure.com"
+        port: 443
+        detail: Scans, classifications, glossary and lineage.
+    freshness: >
+      Admin API responses are near-real-time. Purview reflects the last completed
+      scan, so scan cadence — not API latency — sets how current the
+      classification picture is.
+    pagination: >
+      Continuation tokens on the admin APIs; Atlas-style paging on Purview
+      search.
+    limits: >
+      The Power BI admin API is the constraint: it throttles aggressively per
+      tenant and is the reason the harvest enumerates rather than fans out.
+      Confirm current limits in the vendor document above before scheduling
+      frequent runs.
+
+  bigquery:
+    summary: >
+      INFORMATION_SCHEMA for structure and usage, Data Catalog for policy tags,
+      Dataplex for quality scans, and the Data Lineage API for edges. The
+      permission set is deliberately narrow enough that it cannot read a table.
+    vendor_docs:
+      - title: INFORMATION_SCHEMA reference
+        url: https://cloud.google.com/bigquery/docs/information-schema-intro
+      - title: Workload identity federation
+        url: https://cloud.google.com/iam/docs/workload-identity-federation
+      - title: Data Lineage API
+        url: https://cloud.google.com/data-catalog/docs/reference/data-lineage/rest
+    auth:
+      - mode: Workload identity federation
+        recommended: true
+        detail: >
+          Keyless. The workload proves its identity to STS and exchanges it for a
+          short-lived token, so there is no service-account key to store.
+      - mode: Service account key
+        detail: Fallback where federation is unavailable. Rotate on a schedule.
+    config_fields:
+      - key: project
+        required: true
+        secret: false
+        example: acme-analytics-prod
+        detail: Project whose datasets are assessed.
+      - key: location
+        required: true
+        secret: false
+        example: us
+        detail: >
+          INFORMATION_SCHEMA is region-qualified; a mismatched region returns an
+          empty result rather than an error, which would look like an empty
+          estate.
+      - key: billing_project
+        required: false
+        secret: false
+        example: acme-eairn-ops
+        detail: Bills the metadata queries away from the assessed project.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/bigquery.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: bigquery.googleapis.com
+        port: 443
+        detail: INFORMATION_SCHEMA queries.
+      - host: datacatalog.googleapis.com
+        port: 443
+        detail: Taxonomies and policy tags.
+      - host: dataplex.googleapis.com
+        port: 443
+        detail: Lakes, zones and data-quality scan results.
+      - host: datalineage.googleapis.com
+        port: 443
+        detail: Lineage link search.
+      - host: sts.googleapis.com
+        port: 443
+        detail: Token exchange for workload identity federation.
+    freshness: >
+      INFORMATION_SCHEMA is current. JOBS carries a bounded retention window
+      (180 days at time of writing) and the harvest looks back 90 days for usage.
+    pagination: Page tokens on every REST call; result streaming for queries.
+    limits: >
+      Query concurrency and API quotas are per project. Metadata queries scan
+      little, but the JOBS rollup is the heaviest statement in the catalog.
+
+  oracle:
+    summary: >
+      Data dictionary views plus Unified Audit. The account holds
+      SELECT_CATALOG_ROLE and nothing else — SELECT ANY TABLE is never
+      requested.
+    vendor_docs:
+      - title: Static data dictionary views
+        url: https://docs.oracle.com/en/database/oracle/oracle-database/23/refrn/
+      - title: python-oracledb connection handling
+        url: https://python-oracledb.readthedocs.io/en/latest/user_guide/connection_handling.html
+    auth:
+      - mode: Database user over TLS
+        recommended: true
+        detail: Dedicated EAIRN_RO account.
+      - mode: Wallet (mTLS)
+        detail: Required for Autonomous Database; supply the wallet directory.
+    config_fields:
+      - key: dsn
+        required: true
+        secret: false
+        example: exadata-prod.internal:1521/EAIRNPDB
+        detail: Easy Connect string or a TNS alias resolved from the wallet.
+      - key: user
+        required: true
+        secret: false
+        example: EAIRN_RO
+        detail: Read-only dictionary account.
+      - key: password
+        required: true
+        secret: true
+        example: "***"
+        detail: Not needed when the wallet supplies mTLS credentials.
+      - key: wallet_location
+        required: false
+        secret: true
+        example: /run/secrets/oracle_wallet
+        detail: Directory holding cwallet.sso for Autonomous Database.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/oracle.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: "<database host>"
+        port: 1521
+        detail: >
+          Standard listener. Autonomous Database uses 1522 with mTLS. This is the
+          one connector that is not HTTPS.
+    freshness: >
+      Dictionary views are live. num_rows and last_analyzed are only as
+      current as the last statistics gathering, which is a finding in its own
+      right when it is stale.
+    pagination: None; result sets stream over the driver.
+    limits: >
+      Bounded by the instance. Dictionary scans on a large estate are heavier
+      than they look; run against a standby where one exists.
+
+  collibra:
+    summary: >
+      Harvested as an evidence source and scored as a subject: EAIRN reads
+      assets, owners and workflows, then asks whether the governance programme
+      behind them is operationally alive.
+    vendor_docs:
+      - title: Collibra Core REST API
+        url: https://developer.collibra.com/rest/
+    auth:
+      - mode: OAuth client credentials
+        recommended: true
+        detail: Integration client with read-only role on the relevant communities.
+      - mode: Basic authentication
+        detail: Supported on older instances; prefer OAuth where available.
+    config_fields:
+      - key: host
+        required: true
+        secret: false
+        example: https://acme.collibra.com
+        detail: Instance base URL.
+      - key: client_id
+        required: true
+        secret: false
+        example: eairn-readonly
+        detail: Integration client identifier.
+      - key: client_secret
+        required: true
+        secret: true
+        example: "***"
+        detail: Held in the platform secret store.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/collibra.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: "<instance>.collibra.com"
+        port: 443
+        detail: Core REST API.
+    freshness: Live. Workflow state reflects the moment of the call.
+    pagination: Offset and limit; the API caps page size, so large communities page.
+    limits: Per-instance API limits apply; the harvest is read-mostly and shallow.
+
+  alation:
+    summary: >
+      Catalog curation, stewardship assignments and query-log intelligence --
+      the last of which is how an estate's actual usage is measured where the
+      platform does not expose it.
+    vendor_docs:
+      - title: Alation APIs
+        url: https://developer.alation.com/dev/reference/
+    auth:
+      - mode: API access token from a refresh token
+        recommended: true
+        detail: >
+          A refresh token issued to a viewer account is exchanged for a
+          short-lived access token per run.
+    config_fields:
+      - key: host
+        required: true
+        secret: false
+        example: https://catalog.acme.com
+        detail: Alation instance URL.
+      - key: refresh_token
+        required: true
+        secret: true
+        example: "***"
+        detail: Exchanged for an access token; never persisted by EAIRN.
+      - key: user_id
+        required: true
+        secret: false
+        example: "42"
+        detail: Numeric id the refresh token belongs to.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/alation.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: "<instance host>"
+        port: 443
+        detail: Integration API, usually customer-hosted.
+    freshness: Live for curation state; query-log rollups follow the ingestion schedule.
+    pagination: Limit and skip on the v2 endpoints.
+    limits: Per-instance; the harvest reads inventories rather than fanning out per object.
+
+  purview:
+    summary: >
+      Scan coverage, classification definitions, glossary and lineage over the
+      Atlas-compatible data plane. Also reachable as part of the Fabric
+      connector when both are in play.
+    vendor_docs:
+      - title: Purview data plane REST API
+        url: https://learn.microsoft.com/en-us/rest/api/purview/
+    auth:
+      - mode: Entra ID application (client credentials)
+        recommended: true
+        detail: Data Reader on the Purview account. No control-plane role needed.
+    config_fields:
+      - key: account
+        required: true
+        secret: false
+        example: contoso-purview
+        detail: Purview account name; forms the data-plane hostname.
+      - key: tenant_id
+        required: true
+        secret: false
+        example: 00000000-1111-2222-3333-444444444444
+        detail: Entra ID tenant.
+      - key: client_id
+        required: true
+        secret: false
+        example: 55555555-6666-7777-8888-999999999999
+        detail: Application id granted Data Reader.
+      - key: client_secret
+        required: true
+        secret: true
+        example: "***"
+        detail: Omit when using a managed identity.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/purview.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: login.microsoftonline.com
+        port: 443
+        detail: Token acquisition.
+      - host: "<account>.purview.azure.com"
+        port: 443
+        detail: Catalog, scan and lineage endpoints.
+    freshness: >
+      Reflects the last completed scan. An estate with a monthly scan cadence has
+      month-old classification evidence, which the confidence model accounts for.
+    pagination: Atlas-style search paging with offset and limit.
+    limits: Data-plane throttling applies per account.
+
+  atlan:
+    summary: >
+      Asset inventory, README and description coverage, and lineage, read
+      through the index-search API.
+    vendor_docs:
+      - title: Atlan Developer API
+        url: https://developer.atlan.com/endpoints/
+    auth:
+      - mode: API token (bearer)
+        recommended: true
+        detail: Token bound to an API key with the member (read) role.
+    config_fields:
+      - key: host
+        required: true
+        secret: false
+        example: https://acme.atlan.com
+        detail: Tenant base URL.
+      - key: api_key
+        required: true
+        secret: true
+        example: "***"
+        detail: Sent as a bearer token.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/atlan.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: "<tenant>.atlan.com"
+        port: 443
+        detail: Metadata and lineage APIs.
+    freshness: Live.
+    pagination: >
+      Index search pages by offset and size. The search endpoint is a POST and is
+      declared read-only explicitly, because a POST that only reads still has to
+      be reviewed as such.
+    limits: Per-tenant API limits apply to index search.
+
+  informatica_cdgc:
+    summary: >
+      Catalog objects, relationships and business-term linkage from EDC or the
+      Cloud Data Governance and Catalog service.
+    vendor_docs:
+      - title: Informatica Cloud Data Governance and Catalog REST API
+        url: https://docs.informatica.com/data-governance-and-catalog.html
+    auth:
+      - mode: Session token from IDS login
+        recommended: true
+        detail: >
+          A catalog read-only user authenticates to Informatica Intelligent Cloud
+          Services and receives a session token for the pod.
+    config_fields:
+      - key: host
+        required: true
+        secret: false
+        example: https://usw3.dm-us.informaticacloud.com
+        detail: Pod base URL; region-specific.
+      - key: username
+        required: true
+        secret: false
+        example: eairn_ro
+        detail: Catalog read-only user.
+      - key: password
+        required: true
+        secret: true
+        example: "***"
+        detail: Exchanged for a session token per run.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/informatica.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: "<pod>.informaticacloud.com"
+        port: 443
+        detail: Catalog access API.
+    freshness: Reflects the last completed catalog scan.
+    pagination: Offset and page-size parameters on the object endpoints.
+    limits: Per-org API limits apply.
+
+  monte_carlo:
+    summary: >
+      Monitors, incidents and the lineage-aware alerting graph. Together with
+      the incident timestamps, this is what turns "we have monitoring" into a
+      measured detection and resolution time.
+    vendor_docs:
+      - title: Monte Carlo API reference
+        url: https://apidocs.getmontecarlo.com/
+    auth:
+      - mode: API key (id and token)
+        recommended: true
+        detail: Viewer-role key sent as request headers.
+    config_fields:
+      - key: host
+        required: false
+        secret: false
+        example: https://api.getmontecarlo.com
+        detail: Defaults to the public GraphQL endpoint.
+      - key: mcd_id
+        required: true
+        secret: false
+        example: "***"
+        detail: API key identifier.
+      - key: mcd_token
+        required: true
+        secret: true
+        example: "***"
+        detail: API key secret.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/monte_carlo.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: api.getmontecarlo.com
+        port: 443
+        detail: GraphQL endpoint.
+    freshness: Live.
+    pagination: Cursor-based paging on the GraphQL connections.
+    limits: >
+      GraphQL query complexity limits apply. Every declared operation is a query
+      document; no mutation is ever issued, and the endpoints are declared
+      read-only explicitly for that reason.
+
+  great_expectations:
+    summary: >
+      Expectation suites, checkpoints and validation results — the
+      checks-as-code half of the data-quality picture.
+    vendor_docs:
+      - title: GX Cloud API
+        url: https://docs.greatexpectations.io/docs/cloud/
+    auth:
+      - mode: Access token
+        recommended: true
+        detail: Read-scoped GX Cloud token, or read access to a data-docs store.
+    config_fields:
+      - key: host
+        required: false
+        secret: false
+        example: https://api.greatexpectations.io
+        detail: Defaults to GX Cloud.
+      - key: organization_id
+        required: true
+        secret: false
+        example: 00000000-1111-2222-3333-444444444444
+        detail: GX Cloud organisation.
+      - key: access_token
+        required: true
+        secret: true
+        example: "***"
+        detail: Read-scoped token.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/great_expectations.json
+        detail: >
+          Also the path for self-hosted deployments that publish data docs
+          rather than exposing an API.
+    egress:
+      - host: api.greatexpectations.io
+        port: 443
+        detail: GX Cloud API. Self-hosted deployments substitute their own host.
+    freshness: Reflects the last checkpoint run.
+    pagination: Page and per-page parameters.
+    limits: Per-organisation API limits apply.
+
+  soda:
+    summary: >
+      Checks, scans and data contracts from Soda Cloud.
+    vendor_docs:
+      - title: Soda Cloud API
+        url: https://docs.soda.io/api-docs/public-cloud-api-v1
+    auth:
+      - mode: API key (read)
+        recommended: true
+        detail: Soda Cloud API key pair sent as basic credentials.
+    config_fields:
+      - key: host
+        required: false
+        secret: false
+        example: https://cloud.soda.io
+        detail: Regional Soda Cloud host.
+      - key: api_key_id
+        required: true
+        secret: false
+        example: "***"
+        detail: API key identifier.
+      - key: api_key_secret
+        required: true
+        secret: true
+        example: "***"
+        detail: API key secret.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/soda.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: cloud.soda.io
+        port: 443
+        detail: Public cloud API. Regional hosts differ.
+    freshness: Live.
+    pagination: Page and size parameters.
+    limits: Per-organisation API limits apply.
+
+  ataccama:
+    summary: >
+      Rules, anomaly models and issue workflows from Ataccama ONE.
+    vendor_docs:
+      - title: Ataccama ONE documentation
+        url: https://docs.ataccama.com/
+    auth:
+      - mode: API token
+        recommended: true
+        detail: Read-only ONE user with an issued token.
+    config_fields:
+      - key: host
+        required: true
+        secret: false
+        example: https://one.acme.com
+        detail: ONE instance base URL, usually customer-hosted.
+      - key: api_token
+        required: true
+        secret: true
+        example: "***"
+        detail: Read-only token.
+      - key: bundle
+        required: false
+        secret: false
+        example: /srv/bundles/ataccama.json
+        detail: Canonical metadata export, used until the live driver ships.
+    egress:
+      - host: "<instance host>"
+        port: 443
+        detail: ONE API.
+    freshness: Live.
+    pagination: Offset and limit on the rule and issue endpoints.
+    limits: Per-instance.
+
+# --------------------------------------------------------------------------- #
+# The path that works today for every platform, live driver or not.
+# --------------------------------------------------------------------------- #
+
+canonical_bundle:
+  summary: >
+    A canonical metadata bundle is a JSON export in the shape of EAIRN's own
+    canonical model. Any connector marked bundle-backed assesses from one today,
+    producing the same evidence records and the same score as a live harvest.
+  why: >
+    Live drivers land per the product roadmap, but a platform without one is not
+    a platform that cannot be assessed. The distinction that matters is *who
+    performs the extraction*, not whether the assessment is rigorous: the check
+    library, the scoring engine and the snapshot hash are identical on both
+    paths. A live harvest raises rather than silently returning an empty estate,
+    because an empty estate scores as "nothing to see" instead of "not measured".
+  fields:
+    - entity: datasets
+      detail: Tables, views, model and document collections, with their columns.
+    - entity: lineage
+      detail: Table- and column-level edges, each carrying a source and confidence.
+    - entity: policies
+      detail: Masking policies, row-access policies, redaction rules, policy tags.
+    - entity: grants
+      detail: The grant graph, with admin-role membership flagged.
+    - entity: usage
+      detail: Daily rollups only. Never individual statements.
+    - entity: dq_monitors / dq_incidents
+      detail: Monitor definitions and the incident timeline behind detection metrics.
+    - entity: ml_assets
+      detail: Experiments, registered models, endpoints and feature tables.
+    - entity: semantic_models / kpi_definitions
+      detail: Semantic layer coverage and every physical definition of each KPI.
+    - entity: agents / rag_corpora
+      detail: Agent safety posture and retrieval corpus governance.
+    - entity: governance_programs
+      detail: Operational liveness of the governance programme itself.
+  configuration: >
+    Set bundle=<path> in the connection configuration. The loader intersects
+    the bundle's declared capabilities with the connector's, so a bundle cannot
+    claim to have observed something its connector could never see.

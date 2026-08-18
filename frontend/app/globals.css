@@ -1011,3 +1011,255 @@ details.working tfoot td {
   border-bottom: none;
   background: var(--surface-sunken);
 }
+
+/* --- API documentation ---------------------------------------------------- */
+
+.api-connector {
+  margin-bottom: 1.4rem;
+}
+
+.api-connector-head {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.api-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.api-list li {
+  padding: 0.4rem 0 0.4rem 0.9rem;
+  border-left: 2px solid var(--border);
+  margin-bottom: 0.4rem;
+}
+
+.api-steps {
+  padding-left: 1.2rem;
+  margin: 0;
+}
+
+.api-steps li {
+  margin-bottom: 0.6rem;
+}
+
+.api-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  background: var(--surface-sunken);
+}
+
+.api-panel p:last-child {
+  margin-bottom: 0;
+}
+
+.api-recommended,
+.api-secret,
+.api-verified,
+.api-unverified {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.api-recommended {
+  background: var(--ocean-100);
+  color: var(--ocean-700);
+}
+
+.api-secret {
+  background: rgba(192, 74, 63, 0.12);
+  color: var(--severity-critical);
+}
+
+.api-verified {
+  background: rgba(36, 160, 109, 0.12);
+  color: var(--grade-ready);
+}
+
+.api-unverified {
+  background: rgba(192, 74, 63, 0.14);
+  color: var(--severity-critical);
+}
+
+.api-call {
+  margin: 0 0 0.7rem;
+}
+
+.api-call-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.api-call-name {
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.api-method {
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: var(--ocean-100);
+  color: var(--ocean-700);
+}
+
+.api-method-post {
+  background: rgba(182, 134, 42, 0.16);
+  color: var(--grade-capable);
+}
+
+.api-method-sql {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+
+.api-statement {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.coverage-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.coverage-fill {
+  height: 100%;
+  background: var(--grade-ready);
+}
+
+.coverage-pillars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.coverage-pillar {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.6rem;
+  background: var(--surface-sunken);
+}
+
+.api-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin: 1rem 0;
+}
+
+.api-facts p {
+  margin: 0.2rem 0 0;
+  font-size: 0.83rem;
+}
+
+/* --- data model ----------------------------------------------------------- */
+
+.dm-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.5rem;
+  background: var(--surface-raised);
+}
+
+.dm-table > summary {
+  cursor: pointer;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dm-table-name {
+  font-weight: 600;
+}
+
+.dm-table-meta {
+  font-size: 0.78rem;
+}
+
+.dm-capability {
+  margin-left: auto;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: var(--ocean-100);
+  color: var(--ocean-700);
+}
+
+.dm-key {
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0.02rem 0.35rem;
+  border-radius: 4px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+}
+
+.dm-key-fk {
+  color: var(--ocean-700);
+  text-decoration: none;
+}
+
+.dm-ddl {
+  margin-top: 0.5rem;
+}
+
+.dm-ddl > summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.dm-ddl pre {
+  margin: 0.4rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+.dm-url {
+  margin: 0.3rem 0;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  font-size: 0.7rem;
+  overflow-x: auto;
+  white-space: pre;
+}

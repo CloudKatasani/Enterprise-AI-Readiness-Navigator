@@ -748,3 +748,179 @@ export const verifySnapshot = (snapshotId: string) =>
   get<{ reproducible: boolean; recorded_hash: string; replayed_hash: string }>(
     `/api/assessments/${snapshotId}/verify`,
   );
+
+// -- API documentation ------------------------------------------------------ //
+
+export interface IntegrationCall {
+  name: string;
+  kind: "sql" | "http";
+  method?: string;
+  statement: string;
+  read_only_verified: boolean;
+  reviewed_read_only_post?: boolean;
+}
+
+export interface IntegrationAuthMode {
+  mode: string;
+  recommended?: boolean;
+  detail: string;
+}
+
+export interface IntegrationConfigField {
+  key: string;
+  required: boolean;
+  secret: boolean;
+  example: string;
+  detail: string;
+}
+
+export interface IntegrationEgress {
+  host: string;
+  port: number;
+  detail: string;
+}
+
+export interface IntegrationCoverage {
+  unlocked_count: number;
+  blocked_count: number;
+  by_pillar: {
+    pillar_key: string;
+    pillar_name: string;
+    checks: { check_id: string; title: string }[];
+  }[];
+  still_unmeasured: { check_id: string; title: string; missing: string[] }[];
+}
+
+export interface IntegrationConnector {
+  key: string;
+  platform: string;
+  display_name: string;
+  capabilities: string[];
+  roadmap_phase: string;
+  live_harvest_available: boolean;
+  accepts_canonical_bundle: boolean;
+  live_driver: string;
+  permission_manifest: {
+    principal: string;
+    reads_row_data: boolean;
+    notes: string;
+    grants: { scope: string; grant: string; purpose: string }[];
+  };
+  calls: IntegrationCall[];
+  read_only_problems: string[];
+  coverage: IntegrationCoverage;
+  summary: string;
+  vendor_docs: { title: string; url: string }[];
+  auth: IntegrationAuthMode[];
+  config_fields: IntegrationConfigField[];
+  egress: IntegrationEgress[];
+  freshness: string;
+  pagination: string;
+  limits: string;
+  preconditions: string[];
+  documented: boolean;
+}
+
+export interface IntegrationView {
+  guide_version: string;
+  guide_digest: string;
+  intro: { headline: string; body: string };
+  hosting: {
+    summary: string;
+    runtime: { name: string; detail: string }[];
+    secrets: { platform: string; service: string; detail: string }[];
+    network: { summary: string; notes: string[] };
+    environment: {
+      intro: string;
+      variables: { name: string; example: string; detail: string; current?: string }[];
+    };
+    sequence: { step: string; detail: string }[];
+  };
+  canonical_bundle: {
+    summary: string;
+    why: string;
+    fields: { entity: string; detail: string }[];
+    configuration: string;
+  };
+  connectors: IntegrationConnector[];
+  capability_matrix: {
+    capability: string;
+    connectors: string[];
+    checks: { check_id: string; pillar_key: string; pillar_name: string }[];
+    check_count: number;
+  }[];
+  totals: {
+    connectors: number;
+    live_drivers: number;
+    bundle_backed: number;
+    documented_calls: number;
+    registered_checks: number;
+    read_only_violations: number;
+  };
+}
+
+// -- data model ------------------------------------------------------------- //
+
+export interface DataModelColumn {
+  name: string;
+  type: string;
+  postgres_type: string;
+  nullable: boolean;
+  primary_key: boolean;
+  foreign_keys: string[];
+  indexed: boolean;
+  unique: boolean;
+  has_default: boolean;
+}
+
+export interface DataModelTable {
+  name: string;
+  class_name: string;
+  purpose: string;
+  populated_by_capability: string | null;
+  columns: DataModelColumn[];
+  primary_key: string[];
+  foreign_keys: [string, string, string][];
+  unique_constraints: { name: string; columns: string[] }[];
+  indexes: { name: string; columns: string[]; unique: boolean }[];
+  postgres_ddl: string;
+  row_count: number | null;
+}
+
+export interface DataModelFamily {
+  key: string;
+  name: string;
+  lifecycle: string;
+  summary: string;
+  tables: DataModelTable[];
+}
+
+export interface DataModelView {
+  families: DataModelFamily[];
+  relationships: {
+    from_table: string;
+    from_column: string;
+    to_table: string;
+    to_column: string;
+    on_delete: string;
+  }[];
+  deployment: {
+    current_dialect: string;
+    current_url: string;
+    is_production_target: boolean;
+    targets: { platform: string; service: string; url: string; detail: string }[];
+    notes: { heading: string; body: string }[];
+  };
+  totals: {
+    tables: number;
+    columns: number;
+    foreign_keys: number;
+    indexes: number;
+    registered_checks: number;
+    rows: number | null;
+  };
+}
+
+export const integrationGuide = () => get<IntegrationView>("/api/integration");
+
+export const dataModel = () => get<DataModelView>("/api/data-model");

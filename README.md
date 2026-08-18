@@ -188,6 +188,67 @@ versioned alongside the rubric it explains. Weights, questions, targets and chec
 rubric tables and never restated in the guide, so the two cannot disagree; tests assert that every
 rubric pillar and index has teaching content and that every number on the page comes from the rubric.
 
+### API Documentation — the wiring diagram for a real deployment
+
+`/api-docs` is the page for whoever has to turn the demo into a running system. For every connector
+in the registry it publishes, on one card:
+
+- **what to configure** — each connection key, whether it is required, whether it is a secret, and a
+  worked example. Secret values are placeholders or the mount path they are read from; a test asserts
+  that no real credential can reach the table;
+- **which credential to mint** — the supported auth modes with the recommended one marked (key-pair
+  for Snowflake, OAuth M2M for Databricks, an Entra application for Fabric and Purview, workload
+  identity federation for BigQuery), alongside the least-privilege grant from the permission manifest;
+- **which hosts the runtime must reach** — every egress hostname and port, so the allowlist for a
+  deployment is the union of the connectors it enables and nothing else;
+- **every statement and endpoint it may issue**, verbatim. The catalog is complete: a connector
+  cannot call anything absent from it;
+- **what connecting it unlocks**, counted in checks and grouped by pillar — and what stays *not
+  measured* until another source covers it;
+- **freshness, paging and rate limits**, each pointing at the vendor document that is authoritative.
+
+Two things on the page are computed rather than claimed. Every catalogued call is re-run through the
+same read-only guard the executor uses *as the page renders*, and the violation count is published in
+the header — a mutating statement could not be documented here for the same reason it could not be
+executed. And the check coverage is derived from the check library's own capability requirements, so
+it moves when a check does.
+
+Above the connectors sits what a hosted deployment needs regardless of platform: what runs, where
+secrets live on each hyperscaler, the backend environment variables with this instance's current
+values beside them, and the five-step sequence from provisioning a principal to verifying that a
+snapshot replays. Below them, the **capability matrix** answers the question a coverage gap actually
+raises — *which platform do I have to connect before RG-005 stops reporting as not measured?*
+
+Operational detail lives in [`integration_v1.yaml`](backend/eairn/seed/integration_v1.yaml); the
+contract — capabilities, grants, statement and endpoint catalogs — is read from the connector
+registry at request time, so the page cannot document a call the code does not make. A test asserts
+that every registered connector has a guide entry, so a new connector cannot appear with an empty
+configuration section that reads as *needs nothing*.
+
+### Data Model — the database underneath
+
+`/data-model` is the page for whoever has to point this at Postgres on AWS, Azure or GCP. Every
+table, column, type, key, index and foreign key is introspected from the ORM as the page renders, so
+the schema and its documentation are the same artefact — a migration that adds a column adds it here.
+
+The thirty-one tables are grouped into four families, because which family a table belongs to is what
+explains its lifecycle: **tenancy and harvest** (mutable configuration), the **canonical metadata
+model** (replaced on each harvest), **rubric as data** (versioned, and immutable once a snapshot
+cites it), and **evidence, scores and snapshots** (append-only). Each canonical table carries the
+connector capability that populates it, which is the API Documentation view's coverage story read
+from the other direction.
+
+Each table expands to its full column list — generic type, the type Postgres will actually create,
+nullability and key role — plus the live row count on this instance and the **Postgres DDL** the
+deployment gets. The per-column Postgres type comes from the same DDL compiler as the `CREATE TABLE`
+below it, so the two cannot disagree about an identity column rendering as `SERIAL`.
+
+The deployment section names the managed Postgres service and connection string for each hyperscaler,
+flags when the running instance is on SQLite rather than a production target, and states the four
+things a reviewer asks: SQLite is development-only, real deployments run Alembic rather than
+`create_all`, no customer rows are stored under any configuration, and every tenant-keyed table
+cascades back to `tenants` so removing an organisation is one statement rather than a cleanup script.
+
 ### A methodology page that shows its working
 
 `/methodology` is the page to hand a client who asks *"where does this number come from?"*. It works
@@ -263,6 +324,8 @@ service principal.
 | `POST /api/demo/run` | Generate a synthetic estate to that shape and assess it end to end |
 | `GET /api/assessments/{id}/action-plan` | Blockers, architect items, steward items and sequenced guidance for one snapshot |
 | `GET /api/pillars` | The scoring-pillar guide: rubric structure, teaching content, references and the live portfolio spread per pillar |
+| `GET /api/integration` | Deployment and connector wiring: auth modes, configuration keys, egress hosts, the verbatim statement/endpoint catalog re-validated as read-only, and the checks each connector unlocks |
+| `GET /api/data-model` | Every table introspected from the ORM: columns, keys, indexes, Postgres DDL, live row counts and the hyperscaler deployment targets |
 | `GET /api/methodology?snapshot=` | The full calculation worked through one snapshot: harvest provenance, per-pillar arithmetic recomputed and reconciled against the engine, caps, indices, confidence tiers and every coverage gap |
 | `GET /api/assessments/{id}/dashboard/{executive\|architect\|steward}` | Role-scoped views |
 | `GET /api/assessments/{id}/evidence`, `GET /api/evidence/{id}` | Evidence drill-through |

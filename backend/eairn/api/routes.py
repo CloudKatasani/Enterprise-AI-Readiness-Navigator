@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from eairn.advisor import AdvisorInput, draft_executive_narrative
@@ -33,9 +34,11 @@ from eairn.dashboard import (
     serialize_score,
     steward_view,
 )
+from eairn.datamodel import data_model_view
 from eairn.db import get_session
 from eairn.actionplan import action_plan
 from eairn.demo import DemoSpec, advisor_mode, demo_options, run_demo
+from eairn.integration import integration_guide
 from eairn.methodology import median_assessment, methodology_view
 from eairn.pillars import pillar_guide
 from eairn.models import (
@@ -279,6 +282,34 @@ def get_pillar_guide(
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
     return pillar_guide(session, rubric)
+
+
+@router.get("/integration", tags=["catalog"])
+def get_integration_guide(
+    version: str | None = Query(default=None, description="Rubric version; defaults to the active one"),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """API documentation: what to configure, what EAIRN calls, what it unlocks.
+
+    The rubric is resolved only to name the pillars a connector's checks belong
+    to. None of the wiring detail depends on one being installed, so a missing
+    rubric -- or a database that has not been created yet, which is exactly the
+    state a first-time deployment reads this page in -- degrades to bare pillar
+    keys rather than failing the request.
+    """
+    version = version or get_settings().default_rubric_version
+    try:
+        rubric = get_rubric(session, version)
+    except SQLAlchemyError:
+        session.rollback()
+        rubric = None
+    return integration_guide(rubric=rubric, settings=get_settings())
+
+
+@router.get("/data-model", tags=["catalog"])
+def get_data_model(session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Every table EAIRN creates, its Postgres DDL, and what populates it."""
+    return data_model_view(session=session, settings=get_settings())
 
 
 @router.get("/methodology", tags=["catalog"])

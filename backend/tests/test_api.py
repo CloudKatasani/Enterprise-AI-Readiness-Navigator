@@ -595,3 +595,178 @@ def test_demo_run_for_an_existing_organization_leaves_it_untouched(
     still_there = next(a for a in after if a["tenant_key"] == "reference-estate")
     assert still_there["snapshot_id"] == reference["snapshot_id"]
     assert still_there["composite_score"] == reference["composite_score"]
+
+
+def test_integration_guide_documents_every_registered_connector(client: TestClient) -> None:
+    """The API Documentation view must cover the registry, not a snapshot of it.
+
+    A connector added to the registry without a guide entry would otherwise
+    appear on the page with empty auth and configuration sections -- which reads
+    as "needs nothing" rather than "nobody wrote this down yet".
+    """
+    from eairn.connectors.registry import REGISTRY
+
+    guide = client.get("/api/integration").json()
+    documented = {c["key"] for c in guide["connectors"]}
+    assert documented == set(REGISTRY)
+    assert all(c["documented"] for c in guide["connectors"]), [
+        c["key"] for c in guide["connectors"] if not c["documented"]
+    ]
+
+    for connector in guide["connectors"]:
+        assert connector["summary"], connector["key"]
+        assert connector["auth"], connector["key"]
+        assert connector["permission_manifest"]["reads_row_data"] is False, connector["key"]
+
+    # Live drivers sort ahead of bundle-backed ones.
+    live = [i for i, c in enumerate(guide["connectors"]) if c["live_harvest_available"]]
+    bundled = [i for i, c in enumerate(guide["connectors"]) if not c["live_harvest_available"]]
+    assert max(live) < min(bundled)
+
+
+def test_integration_guide_publishes_verified_read_only_calls(client: TestClient) -> None:
+    """Every catalogued call is re-validated as the page renders, and none fails."""
+    guide = client.get("/api/integration").json()
+
+    assert guide["totals"]["read_only_violations"] == 0
+    calls = [call for c in guide["connectors"] for call in c["calls"]]
+    assert calls
+    assert all(call["read_only_verified"] for call in calls)
+    assert all(call["statement"] for call in calls)
+    assert guide["totals"]["documented_calls"] == len(calls)
+
+    # A POST only appears when it has been reviewed as a read-only search endpoint.
+    posts = [call for call in calls if call.get("method") == "POST"]
+    assert posts and all(call["reviewed_read_only_post"] for call in posts)
+
+    snowflake = next(c for c in guide["connectors"] if c["key"] == "snowflake")
+    tables = next(call for call in snowflake["calls"] if call["name"] == "tables")
+    assert "SNOWFLAKE.ACCOUNT_USAGE.TABLES" in tables["statement"]
+    assert tables["kind"] == "sql"
+
+
+def test_integration_guide_maps_capabilities_to_checks(client: TestClient) -> None:
+    """Coverage is stated in checks, and the two directions have to agree."""
+    guide = client.get("/api/integration").json()
+    total_checks = guide["totals"]["registered_checks"]
+
+    for connector in guide["connectors"]:
+        coverage = connector["coverage"]
+        assert coverage["unlocked_count"] + coverage["blocked_count"] == total_checks
+        unlocked = {
+            check["check_id"] for pillar in coverage["by_pillar"] for check in pillar["checks"]
+        }
+        assert len(unlocked) == coverage["unlocked_count"]
+
+    # RAG checks need a corpus, and no platform connector supplies one -- which is
+    # exactly why RG-005 reports as not measured on a Snowflake-only assessment.
+    matrix = {row["capability"]: row for row in guide["capability_matrix"]}
+    assert "RG-005" in {check["check_id"] for check in matrix["rag_corpora"]["checks"]}
+    snowflake = next(c for c in guide["connectors"] if c["key"] == "snowflake")
+    blocked = {check["check_id"] for check in snowflake["coverage"]["still_unmeasured"]}
+    assert "RG-005" in blocked
+
+    # Pillar names come from the installed rubric, not from a hardcoded label map.
+    assert "Agent Readiness" in {
+        pillar["pillar_name"]
+        for connector in guide["connectors"]
+        for pillar in connector["coverage"]["by_pillar"]
+    }
+
+
+def test_integration_guide_never_leaks_a_credential(client: TestClient) -> None:
+    """Secret configuration keys are named, never given a value."""
+    guide = client.get("/api/integration").json()
+    secrets = [
+        field
+        for connector in guide["connectors"]
+        for field in connector["config_fields"]
+        if field["secret"]
+    ]
+    assert secrets
+
+    def is_placeholder(example: str) -> bool:
+        # Either masked, or an absolute path naming where the credential is
+        # mounted. A path is not itself a credential and is worth showing.
+        return "***" in example or example.startswith("/")
+
+    offenders = [field["key"] for field in secrets if not is_placeholder(field["example"])]
+    assert not offenders, offenders
+
+    # The live database URL is echoed back for orientation, with any password removed.
+    variables = {v["name"]: v for v in guide["hosting"]["environment"]["variables"]}
+    assert variables["EAIRN_ANTHROPIC_API_KEY"]["current"] in {"set", "unset"}
+    assert "@" not in variables["EAIRN_DATABASE_URL"]["current"].split("://", 1)[-1].split("/")[0]
+
+
+def test_data_model_reflects_the_orm(client: TestClient) -> None:
+    """Every mapped table appears exactly once, in exactly one family."""
+    from eairn.models import Base
+
+    model = client.get("/api/data-model").json()
+    listed = [table["name"] for family in model["families"] for table in family["tables"]]
+    assert sorted(listed) == sorted(Base.metadata.tables)
+    assert len(listed) == len(set(listed)), "a table is listed in more than one family"
+    assert model["totals"]["tables"] == len(listed)
+    assert {f["key"] for f in model["families"]} == {
+        "tenancy",
+        "canonical",
+        "rubric",
+        "assessment",
+    }, "an unclassified family means a table was added without a family entry"
+
+    evidence = next(
+        table
+        for family in model["families"]
+        for table in family["tables"]
+        if table["name"] == "evidence"
+    )
+    assert evidence["class_name"] == "Evidence"
+    assert evidence["purpose"]
+    assert evidence["primary_key"] == ["id"]
+    assert {c["name"] for c in evidence["columns"]} >= {"check_id", "result", "confidence"}
+
+
+def test_data_model_renders_postgres_ddl(client: TestClient) -> None:
+    """The DDL is Postgres, not the SQLite this instance happens to run on."""
+    model = client.get("/api/data-model").json()
+    corpora = next(
+        table
+        for family in model["families"]
+        for table in family["tables"]
+        if table["name"] == "rag_corpora"
+    )
+
+    assert corpora["postgres_ddl"].startswith("CREATE TABLE rag_corpora")
+    assert "SERIAL" in corpora["postgres_ddl"], "an autoincrement key should render as SERIAL"
+    # The per-column type is produced by the same compiler as the DDL, so the two
+    # cannot disagree about an identity column.
+    assert next(c for c in corpora["columns"] if c["name"] == "id")["postgres_type"] == "SERIAL"
+    assert corpora["populated_by_capability"] == "rag_corpora"
+
+    # Tenant-keyed tables cascade, which is what makes deleting an organisation
+    # a single statement rather than a cleanup script.
+    cascades = {
+        (edge["from_table"], edge["to_table"])
+        for edge in model["relationships"]
+        if edge["on_delete"] == "CASCADE"
+    }
+    assert ("rag_corpora", "tenants") in cascades
+    assert ("evidence", "assessments") in cascades
+
+
+def test_data_model_counts_rows_and_flags_the_dialect(client: TestClient, demo_snapshot: str) -> None:
+    """Row counts come from the live database, and SQLite is flagged as non-production."""
+    model = client.get("/api/data-model").json()
+    evidence = next(
+        table
+        for family in model["families"]
+        for table in family["tables"]
+        if table["name"] == "evidence"
+    )
+
+    assert evidence["row_count"] and evidence["row_count"] > 0
+    assert model["totals"]["rows"] >= evidence["row_count"]
+    assert model["deployment"]["current_dialect"] == "sqlite"
+    assert model["deployment"]["is_production_target"] is False
+    assert any(target["platform"] == "AWS" for target in model["deployment"]["targets"])
