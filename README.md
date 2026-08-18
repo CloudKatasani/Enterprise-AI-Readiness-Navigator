@@ -128,6 +128,36 @@ carry the snapshot in the path:
 The masthead's Architect and Steward entries list the organisations for that role rather than
 defaulting to one: no view ever shows an estate the reader did not choose.
 
+### Live Demo — assess an estate shaped like yours
+
+`/demo` is the tab to open in front of a customer. They choose:
+
+- **enterprise data platform** — Snowflake, Databricks, Microsoft Fabric, BigQuery, Redshift, Oracle
+  Exadata or Teradata;
+- **data governance tool** — Collibra, Alation, Informatica CDGC, Atlan, Purview, or platform-native
+  only;
+- **data quality tooling** — Monte Carlo, Great Expectations, Soda, Ataccama, Snowflake-native,
+  Oracle EDQ, or platform-native only;
+- **industry, size band and governance maturity**, plus a seed;
+- **assessment scope** — leave the agent estate, retrieval corpora, ML assets or semantic layer out
+  and those checks are reported as *not measured*, exactly as a real estate without that surface
+  produces. They are never scored as zero.
+
+**Run evaluation now** generates the estate to that shape and puts it through the same pipeline a
+real harvest goes through — harvest → evaluate → score → cap → benchmark → recommend → freeze — in
+about a second, then lands on the executive view for the organisation it just created. The snapshot
+is a real snapshot: `/verify` replays it, and the same configuration and seed reproduce it exactly.
+
+Every estate then carries a fourth tab, **Action plan** (`/estates/{snapshot_id}/actions`):
+
+- **hard blockers first**, with the objects that fail them and the play that clears each;
+- **architect items** — every criterion below its rubric target, ranked by pillar weight × criterion
+  weight × distance from target, plus any coverage gaps the connectors could not observe;
+- **steward items** — the evidence held below the confidence threshold awaiting a decision, and the
+  findings queue with the failing objects;
+- **sequenced guidance** — the roadmap with the projected composite and grade after each horizon,
+  measured by re-scoring rather than estimated.
+
 ### Scoring Pillars — the academy page
 
 `/pillars` is the reference for someone new to AI adoption. For each of the eight pillars and both
@@ -224,6 +254,9 @@ service principal.
 | `GET /api/checks`, `GET /api/rubrics/{version}`, `GET /api/playbooks` | The rubric, check library and playbook library as data |
 | `POST /api/assessments` | Run harvest → evaluate → score → recommend → snapshot |
 | `GET /api/portfolio` | Assessed organisations grouped by industry, latest snapshot each |
+| `GET /api/demo/options` | Platforms, governance and DQ tooling, scopes and profiles a live demo may choose |
+| `POST /api/demo/run` | Generate a synthetic estate to that shape and assess it end to end |
+| `GET /api/assessments/{id}/action-plan` | Blockers, architect items, steward items and sequenced guidance for one snapshot |
 | `GET /api/pillars` | The scoring-pillar guide: rubric structure, teaching content, references and the live portfolio spread per pillar |
 | `GET /api/methodology?snapshot=` | The full calculation worked through one snapshot: harvest provenance, per-pillar arithmetic recomputed and reconciled against the engine, caps, indices, confidence tiers and every coverage gap |
 | `GET /api/assessments/{id}/dashboard/{executive\|architect\|steward}` | Role-scoped views |

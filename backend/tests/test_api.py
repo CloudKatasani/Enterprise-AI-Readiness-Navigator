@@ -400,3 +400,142 @@ def test_pillar_guide_reports_hard_blockers_against_their_scope(client: TestClie
     assert {o["key"] for o in scoped["ARI"]} == {"no_agent_action_audit_index"}
     assert {o["key"] for o in scoped["RRI"]} == {"rag_acl_not_enforced"}
     assert scoped["data_quality"] == []
+
+
+# --------------------------------------------------------------------------- #
+# live demo
+# --------------------------------------------------------------------------- #
+
+
+def test_demo_options_are_self_consistent(client: TestClient) -> None:
+    """Every default the form ships with must be a member of its own catalog."""
+    options = client.get("/api/demo/options").json()
+    assert options["synthetic"] is True
+    catalogs = {
+        "platform": {o["key"] for o in options["platforms"]},
+        "governance_tool": {o["key"] for o in options["governance_tools"]},
+        "dq_tool": {o["key"] for o in options["dq_tools"]},
+        "maturity": {o["key"] for o in options["maturities"]},
+        "industry": {o["key"] for o in options["industries"]},
+        "size_band": {o["key"] for o in options["size_bands"]},
+    }
+    for field, keys in catalogs.items():
+        assert options["defaults"][field] in keys, field
+    # The platforms an audience can demo are a superset of the live connectors,
+    # and the catalog says which is which rather than implying they are the same.
+    assert {"snowflake", "databricks", "fabric", "bigquery", "redshift", "oracle", "teradata"} == catalogs["platform"]
+    assert all(option["note"] for option in options["platforms"])
+
+
+def test_demo_run_assesses_the_chosen_platform_and_tooling(client: TestClient) -> None:
+    response = client.post(
+        "/api/demo/run",
+        json={
+            "organisation": "Cobalt Union Bank",
+            "industry": "financial_services",
+            "platform": "teradata",
+            "governance_tool": "atlan",
+            "dq_tool": "soda",
+            "maturity": "emerging",
+            "size_band": "enterprise",
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["composite_score"] is not None and body["grade"]
+    assert body["configuration"]["platform"] == "teradata"
+
+    snapshot = body["snapshot_id"]
+    evidence = client.get(f"/api/assessments/{snapshot}/evidence").json()["evidence"]
+    platforms = {e["platform"] for e in evidence}
+    assert "teradata" in platforms, "the chosen platform must be what was actually assessed"
+
+    # A demo snapshot is a real snapshot: it replays to the same hash.
+    verify = client.get(f"/api/assessments/{snapshot}/verify").json()
+    assert verify["reproducible"] is True
+
+
+def test_demo_run_is_deterministic_for_the_same_configuration(client: TestClient) -> None:
+    """Same choices and seed, same evidence -- so a demo can be repeated on stage."""
+    payload = {
+        "organisation": "Repeatable Estate",
+        "industry": "retail",
+        "platform": "redshift",
+        "governance_tool": "alation",
+        "dq_tool": "ataccama",
+        "maturity": "advancing",
+        "seed": 4242,
+    }
+    first = client.post("/api/demo/run", json=payload).json()
+    second = client.post("/api/demo/run", json=payload).json()
+    assert first["composite_score"] == second["composite_score"]
+    assert first["stats"]["evidence_records"] == second["stats"]["evidence_records"]
+
+    # Re-running replaces the demo tenant's snapshot rather than accumulating a
+    # meaningless trend line.
+    assessments = client.get("/api/assessments").json()["assessments"]
+    for_tenant = [a for a in assessments if a["tenant_key"] == "demo-repeatable-estate"]
+    assert len(for_tenant) == 1
+
+
+def test_demo_scope_switch_reports_gaps_instead_of_scoring_zero(client: TestClient) -> None:
+    """Leaving a surface out is a coverage gap, not a failing grade."""
+    body = client.post(
+        "/api/demo/run",
+        json={"organisation": "Narrow Scope Co", "scopes_off": ["agents", "rag_corpora"]},
+    ).json()
+    snapshot = body["snapshot_id"]
+
+    skipped = set(body["stats"]["checks_skipped"])
+    assert {"AG-004", "AG-005", "AG-006", "AG-007", "RG-001"} <= skipped
+
+    evidence = client.get(f"/api/assessments/{snapshot}/evidence").json()["evidence"]
+    assert not [e for e in evidence if e["check_id"].startswith("RG-")]
+
+    plan = client.get(f"/api/assessments/{snapshot}/action-plan").json()
+    gaps = {a["check_id"] for a in plan["architect_actions"] if a["kind"] == "no_coverage"}
+    assert {"AG-006", "RG-005"} <= gaps
+    # And nothing claims those checks failed.
+    below = {a["check_id"] for a in plan["architect_actions"] if a["kind"] == "below_target"}
+    assert not (below & gaps)
+
+
+def test_demo_rejects_a_platform_it_cannot_generate(client: TestClient) -> None:
+    response = client.post(
+        "/api/demo/run", json={"organisation": "Mystery Co", "platform": "mainframe"}
+    )
+    assert response.status_code == 400
+    assert "mainframe" in response.json()["detail"]
+
+
+def test_action_plan_only_names_work_the_evidence_supports(
+    client: TestClient, demo_snapshot: str
+) -> None:
+    """Every action resolves to a check that ran, and to objects that failed."""
+    plan = client.get(f"/api/assessments/{demo_snapshot}/action-plan").json()
+    checks = {c["check_id"] for c in client.get("/api/checks").json()["checks"]}
+    evidence = client.get(f"/api/assessments/{demo_snapshot}/evidence").json()["evidence"]
+    by_check = {e["check_id"]: e for e in evidence}
+
+    assert plan["architect_actions"]
+    for action in plan["architect_actions"]:
+        assert action["check_id"] in checks
+        if action["kind"] == "below_target":
+            assert action["score"] is not None and action["target"] is not None
+            assert action["score"] < action["target"]
+            assert action["check_id"] in by_check
+            assert len(action["failing_sample"]) <= action["failing_total"]
+
+    # Steward decisions are exactly the evidence held below the threshold.
+    decisions = {a["evidence_id"] for a in plan["steward_actions"] if a["kind"] == "decide"}
+    pending = {e["id"] for e in evidence if e["status"] == "pending_review"}
+    assert decisions == pending
+
+    # Blockers match what the engine recorded on the snapshot.
+    assessment = client.get(f"/api/assessments/{demo_snapshot}").json()
+    recorded = {b["override"] for b in assessment["stats"]["blockers_triggered"]}
+    assert {b["override"] for b in plan["blockers"]} == recorded
+
+    # The projection is the roadmap's measured impact, not an aspiration.
+    assert plan["projection"]["projected_composite"] >= plan["projection"]["current_composite"]
+    assert plan["horizons"]

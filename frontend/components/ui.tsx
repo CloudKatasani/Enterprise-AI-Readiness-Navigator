@@ -179,7 +179,14 @@ export function OrgCard({
         <span>{org.tenant}</span>
         <span className="org-score">{org.composite_score?.toFixed(1) ?? "--"}</span>
       </div>
-      <div className="org-grade">{org.grade ?? "unscored"}</div>
+      <div className="org-grade">
+        {org.grade ?? "unscored"}
+        {/* A live-demo run joins the portfolio as a comparable estate; it is
+            marked so nobody mistakes it for a reference organization. */}
+        {org.tenant_key.startsWith("demo-") ? (
+          <span className="org-demo"> · live demo run</span>
+        ) : null}
+      </div>
       <div className="org-meta">
         <span>Agent Readiness Index {org.ari_score?.toFixed(0) ?? "--"}</span>
         <span>RAG Readiness Index {org.rri_score?.toFixed(0) ?? "--"}</span>

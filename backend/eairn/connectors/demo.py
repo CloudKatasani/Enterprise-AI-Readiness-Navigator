@@ -21,11 +21,14 @@ from datetime import datetime, timedelta, timezone
 
 from eairn.connectors.base import Connector, HarvestBundle, PermissionGrant, PermissionManifest
 from eairn.connectors.profiles import (
+    GOVERNANCE_TOOL_CATALOG,
     INDUSTRY_PROFILES,
     MATURITY_PROFILES,
     PLATFORM_BY_INDUSTRY,
+    SCOPE_CATALOG,
     IndustryProfile,
     MaturityProfile,
+    option_keys,
 )
 from eairn.models import (
     AgentAsset,
@@ -92,13 +95,55 @@ class DemoConnector(Connector):
     display_name = "Demo estate (synthetic, deterministic)"
     query_catalog: dict[str, str] = {}
 
-    def capabilities(self) -> set[str]:
-        return {
+    #: Everything this generator can populate when nothing is switched off.
+    FULL_CAPABILITIES = frozenset(
+        {
             "datasets", "columns", "descriptions", "classification", "policies", "lineage",
             "column_lineage", "grants", "usage", "dq_monitors", "dq_incidents", "ml_assets",
             "semantic_models", "kpi_definitions", "agents", "rag_corpora", "governance_program",
             "audit_config",
         }
+    )
+
+    def capabilities(self) -> set[str]:
+        """What this run can observe, after any scope switches are applied.
+
+        Turning a scope off removes the capability rather than generating an
+        empty estate, so the affected checks are skipped and reported as *not
+        measured*. An estate with no agent surface is not an estate that scores
+        zero on agents -- it is one nobody has measured, and the rubric already
+        knows the difference.
+        """
+        excluded = self.excluded_capabilities
+        return set(self.FULL_CAPABILITIES - excluded)
+
+    @property
+    def excluded_capabilities(self) -> frozenset[str]:
+        requested = self.config.get("capabilities_off") or []
+        unknown = set(requested) - option_keys(SCOPE_CATALOG)
+        if unknown:
+            raise ValueError(
+                f"unknown scope(s) {sorted(unknown)}; available: "
+                f"{', '.join(sorted(option_keys(SCOPE_CATALOG)))}"
+            )
+        excluded = set(requested)
+        # kpi_definitions ride with the semantic layer: SL checks read both.
+        if "semantic_models" in excluded:
+            excluded.add("kpi_definitions")
+        return frozenset(excluded)
+
+    @property
+    def governance_tool(self) -> str:
+        tool = self.config.get("governance_tool")
+        if tool is None:
+            return GOVERNANCE_TOOL_BY_PLATFORM.get(self.estate_platform, "collibra")
+        if tool not in option_keys(GOVERNANCE_TOOL_CATALOG):
+            raise ValueError(f"unknown governance tool {tool!r}")
+        return tool
+
+    @property
+    def dq_tool(self) -> str:
+        return self.config.get("dq_tool") or "monte_carlo"
 
     def permission_manifest(self) -> PermissionManifest:
         return PermissionManifest(
@@ -158,6 +203,9 @@ class DemoConnector(Connector):
             "maturity": maturity.key,
             "maturity_label": maturity.label,
             "platform": self.estate_platform,
+            "governance_tool": self.governance_tool,
+            "dq_tool": self.dq_tool,
+            "scopes_excluded": sorted(self.excluded_capabilities),
             "seed": self.config.get("seed", SEED),
             "harvest_anchor": HARVEST_ANCHOR.isoformat(),
             "domains": [
@@ -189,13 +237,25 @@ class DemoConnector(Connector):
         monitors, incidents = self._build_dq(rng, datasets, anchor, maturity)
         bundle.dq_monitors = monitors
         bundle.dq_incidents = incidents
-        bundle.ml_assets = self._build_ml_assets(rng, industry, maturity, platform)
-        bundle.semantic_models, bundle.kpi_definitions = self._build_semantics(
-            rng, industry, maturity, platform
-        )
-        bundle.agents = self._build_agents(industry, maturity)
-        bundle.rag_corpora = self._build_rag(industry, maturity)
+        # A scope that was switched off produces no entities *and* no
+        # capability, so its checks are skipped rather than scored on an empty
+        # estate. See `capabilities`.
+        excluded = self.excluded_capabilities
+        if "ml_assets" not in excluded:
+            bundle.ml_assets = self._build_ml_assets(rng, industry, maturity, platform)
+        if "semantic_models" not in excluded:
+            bundle.semantic_models, bundle.kpi_definitions = self._build_semantics(
+                rng, industry, maturity, platform
+            )
+        if "agents" not in excluded:
+            bundle.agents = self._build_agents(industry, maturity)
+        if "rag_corpora" not in excluded:
+            bundle.rag_corpora = self._build_rag(industry, maturity)
         bundle.governance_programs = self._build_governance(anchor, maturity, platform)
+        if excluded:
+            bundle.warnings.append(
+                "scope limited: " + ", ".join(sorted(excluded)) + " not harvested"
+            )
         return bundle
 
     # -- estate ------------------------------------------------------------- #
@@ -497,7 +557,7 @@ class DemoConnector(Connector):
                 monitors.append(
                     DQMonitor(
                         dataset_urn=dataset.urn,
-                        tool="monte_carlo" if rng.random() < 0.6 else "platform_native",
+                        tool=self.dq_tool if rng.random() < 0.6 else "platform_native",
                         check_type=check_type,
                         defined_as_data=rng.random() < maturity.rules_as_data_rate,
                         enabled=True,
@@ -517,7 +577,7 @@ class DemoConnector(Connector):
             incidents.append(
                 DQIncident(
                     dataset_urn=dataset.urn,
-                    tool="monte_carlo",
+                    tool=self.dq_tool,
                     severity=rng.choice(["low", "medium", "high"]),
                     opened_at=opened,
                     detected_at=opened if detected_by_monitor else None,
@@ -722,7 +782,7 @@ class DemoConnector(Connector):
         terms = 420
         return [
             GovernanceProgram(
-                tool=GOVERNANCE_TOOL_BY_PLATFORM.get(platform, "collibra"),
+                tool=self.governance_tool,
                 certifications_opened=opened,
                 certifications_completed=int(opened * maturity.certifications_completed_ratio),
                 median_steward_response_hours=maturity.steward_response_hours,

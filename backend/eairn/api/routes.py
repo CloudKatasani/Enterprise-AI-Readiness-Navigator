@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from eairn.advisor import AdvisorInput, draft_executive_narrative
 from eairn.api.schemas import (
     AssessmentRun,
+    DemoRunRequest,
     EvidenceReview,
     QuestionnaireSubmission,
     RecommendationReview,
@@ -33,6 +34,8 @@ from eairn.dashboard import (
     steward_view,
 )
 from eairn.db import get_session
+from eairn.actionplan import action_plan
+from eairn.demo import DemoSpec, advisor_mode, demo_options, run_demo
 from eairn.methodology import median_assessment, methodology_view
 from eairn.pillars import pillar_guide
 from eairn.models import (
@@ -207,6 +210,58 @@ def get_rubric_detail(version: str, session: Session = Depends(get_session)) -> 
 @router.get("/questionnaire", tags=["catalog"])
 def get_questionnaire() -> dict[str, Any]:
     return {"sections": QUESTIONNAIRE}
+
+
+@router.get("/demo/options", tags=["demo"])
+def get_demo_options() -> dict[str, Any]:
+    """The platforms, tools, scopes and profiles a live demo may choose from.
+
+    These are display catalogs for the synthetic generator. Which connectors can
+    read a *real* estate today is a different question, answered by
+    `GET /api/connectors` with a roadmap phase per connector.
+    """
+    return {**demo_options(), "advisor": advisor_mode(), "synthetic": True}
+
+
+@router.post("/demo/run", tags=["demo"], status_code=201)
+def run_demo_assessment(
+    body: DemoRunRequest, session: Session = Depends(get_session)
+) -> dict[str, Any]:
+    """Generate a synthetic estate to the chosen shape and assess it end to end.
+
+    Same pipeline as a real harvest -- harvest, evaluate, score, cap, recommend,
+    freeze -- so the result is reproducible and verifiable like any other
+    snapshot.
+    """
+    spec = DemoSpec(
+        organisation=body.organisation,
+        industry=body.industry,
+        platform=body.platform,
+        governance_tool=body.governance_tool,
+        dq_tool=body.dq_tool,
+        maturity=body.maturity,
+        size_band=body.size_band,
+        seed=body.seed,
+        scopes_off=list(body.scopes_off),
+        generate_advice=body.generate_advice,
+    )
+    try:
+        assessment = run_demo(session, spec)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    session.commit()
+    return {
+        "snapshot_id": assessment.snapshot_id,
+        "tenant_key": assessment.tenant.key if assessment.tenant else spec.tenant_key,
+        "tenant": assessment.tenant.name if assessment.tenant else spec.organisation,
+        "composite_score": assessment.composite_score,
+        "grade": assessment.grade,
+        "ari_score": assessment.ari_score,
+        "rri_score": assessment.rri_score,
+        "snapshot_hash": assessment.snapshot_hash,
+        "stats": assessment.stats,
+        "configuration": spec.connector_config(),
+    }
 
 
 @router.get("/pillars", tags=["catalog"])
@@ -488,6 +543,18 @@ def simulate(
     evidence = _evidence_for(session, assessment)
     uplift = simulate_uplift(rubric, evidence, body.targets)
     return {"snapshot_id": snapshot_id, "targets": body.targets, **uplift.as_dict()}
+
+
+@router.get("/assessments/{snapshot_id}/action-plan", tags=["assessments"])
+def get_action_plan(snapshot_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """What to fix, who owns it, and what clearing it is worth."""
+    assessment = _assessment(session, snapshot_id)
+    rubric = get_rubric(session, assessment.rubric_version)
+    if rubric is None:
+        raise HTTPException(
+            status_code=409, detail=f"rubric {assessment.rubric_version} is not installed"
+        )
+    return action_plan(session, assessment, rubric)
 
 
 @router.get("/assessments/{snapshot_id}/verify", tags=["assessments"])

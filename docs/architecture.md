@@ -8,6 +8,8 @@ model rather than a source of truth.
 | Component | Module | Responsibility |
 |---|---|---|
 | Portal | `frontend/` | Portfolio index, then a page per assessed estate at `/estates/{snapshot_id}` carrying the executive, architect and steward views; plus the connector permission pack and the methodology view |
+| Live demo runner | `backend/eairn/demo.py`, `frontend/app/demo/` | Validated platform/tooling/scope choices → the same `run_assessment` pipeline on a synthetic estate; provenance recorded on the harvest run |
+| Action plan | `backend/eairn/actionplan.py`, `frontend/app/estates/[snapshot]/actions/` | Blockers, architect items ranked by rubric weight × distance from target, steward queues, and the sequenced roadmap with projected grades |
 | Scoring Pillars guide | `backend/eairn/pillars.py`, `seed/pillar_guide_v1.yaml`, `frontend/app/pillars/` | Why each pillar exists, what its absence costs, the checks behind it and citable references — rubric structure merged with versioned teaching content and the live portfolio spread |
 | Methodology view | `backend/eairn/methodology.py`, `frontend/app/methodology/` | The whole calculation worked through one snapshot: harvest provenance, per-criterion and per-pillar arithmetic recomputed from the stored score lines and reconciled against the engine, and every coverage gap classified by kind |
 | Connector Framework | `backend/eairn/connectors/` | Pluggable read-only adapters, each with a capability set and a published permission manifest |

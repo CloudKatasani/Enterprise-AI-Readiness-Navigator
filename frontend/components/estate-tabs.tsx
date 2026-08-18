@@ -7,6 +7,7 @@ const TABS = [
   { segment: "", label: "Executive", hint: "Score, blockers, roadmap" },
   { segment: "architect", label: "Architect", hint: "Heatmaps and evidence" },
   { segment: "steward", label: "Steward", hint: "Review and findings queue" },
+  { segment: "actions", label: "Action plan", hint: "What to fix, who owns it, what it is worth" },
 ] as const;
 
 /**

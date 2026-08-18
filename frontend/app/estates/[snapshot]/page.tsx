@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   ApiDownNotice,
   BenchmarkRow,
@@ -13,10 +14,13 @@ export const dynamic = "force-dynamic";
 
 export default async function EstateExecutivePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ snapshot: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { snapshot } = await params;
+  const fromDemo = (await searchParams).from === "demo";
 
   let view;
   try {
@@ -35,8 +39,35 @@ export default async function EstateExecutivePage({
       ? assessment.composite_score - previous.composite_score
       : null;
 
+  const demoConfig = view.assessment.connectors?.[0]?.stats?.config ?? {};
+
   return (
     <>
+      {fromDemo ? (
+        <div className="banner banner-info">
+          <h3>Evaluation complete</h3>
+          <p style={{ margin: "0 0 0.4rem" }}>
+            {view.assessment.tenant} scored{" "}
+            <strong>{assessment.composite_score?.toFixed(1)}</strong> — {assessment.grade}. Everything
+            below was produced by the run you just triggered: {assessment.stats?.evidence_records}{" "}
+            evidence records across {assessment.stats?.datasets} datasets, scored under rubric v
+            {assessment.rubric_version} and frozen as a verifiable snapshot.{" "}
+            <Link href={`/estates/${snapshot}/actions`}>
+              Open the action plan for your architects and stewards →
+            </Link>
+          </p>
+          <div className="muted mono" style={{ fontSize: "0.78rem" }}>
+            {demoConfig.platform} · governance {demoConfig.governance_tool} · quality{" "}
+            {demoConfig.dq_tool} · maturity {demoConfig.maturity} · seed {demoConfig.seed}
+            {demoConfig.scopes_excluded?.length
+              ? ` · scope excluded: ${demoConfig.scopes_excluded.join(", ")}`
+              : ""}
+            {" · "}
+            <Link href="/demo">run another</Link>
+          </div>
+        </div>
+      ) : null}
+
       <div className="eyebrow">Executive view</div>
       <p className="lede">
         Scored from this estate&apos;s own machine evidence under rubric v{assessment.rubric_version}

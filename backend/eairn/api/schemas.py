@@ -32,6 +32,24 @@ class AssessmentRun(BaseModel):
     generate_advice: bool = True
 
 
+class DemoRunRequest(BaseModel):
+    """One live-demo run. Every choice is validated against the demo catalogs."""
+
+    organisation: str = Field(min_length=2, max_length=120)
+    industry: str = "financial_services"
+    platform: str = "snowflake"
+    governance_tool: str = "collibra"
+    dq_tool: str = "monte_carlo"
+    maturity: str = "emerging"
+    size_band: str = "enterprise"
+    seed: int = Field(default=20260817, ge=1, le=99999999)
+    scopes_off: list[str] = Field(
+        default_factory=list,
+        description="Scopes to leave unharvested; their checks are reported as not measured",
+    )
+    generate_advice: bool = True
+
+
 class EvidenceReview(BaseModel):
     decision: Literal["accepted", "rejected"]
     reviewer: str

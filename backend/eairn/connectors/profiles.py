@@ -394,3 +394,69 @@ PLATFORM_BY_INDUSTRY: dict[str, str] = {
     "technology": "bigquery",
     "healthcare": "fabric",
 }
+
+
+# --------------------------------------------------------------------------- #
+# Demo catalogs
+# --------------------------------------------------------------------------- #
+#
+# What a live-demo audience is allowed to choose. These are display catalogs for
+# the synthetic generator, not a claim of live-harvest support: which connectors
+# can read a real estate today is published separately at /api/connectors, and
+# each carries its own roadmap phase. Keeping the two apart is deliberate --
+# a demo that silently implied a live Teradata driver would be a lie told by a
+# dropdown.
+
+
+@dataclass(frozen=True)
+class DemoOption:
+    key: str
+    label: str
+    note: str = ""
+
+
+#: Enterprise data platforms an audience can pick for the synthetic estate.
+PLATFORM_CATALOG: tuple[DemoOption, ...] = (
+    DemoOption("snowflake", "Snowflake", "Reference connector; live harvest available today"),
+    DemoOption("databricks", "Databricks", "Unity Catalog system tables; live driver in P2"),
+    DemoOption("fabric", "Microsoft Fabric", "Admin + Purview APIs; live driver in P2"),
+    DemoOption("bigquery", "Google BigQuery", "INFORMATION_SCHEMA + Dataplex; live driver in P3"),
+    DemoOption("redshift", "Amazon Redshift", "SVV catalog views + Lake Formation; demo profile only"),
+    DemoOption("oracle", "Oracle Exadata", "Data-dictionary harvest; live driver in P4"),
+    DemoOption("teradata", "Teradata Vantage", "DBC dictionary views; demo profile only"),
+)
+
+#: Governance / catalog tools. "none" is a real answer and scores like one.
+GOVERNANCE_TOOL_CATALOG: tuple[DemoOption, ...] = (
+    DemoOption("collibra", "Collibra", "Catalog, glossary and certification workflow"),
+    DemoOption("alation", "Alation", "Catalog, curation and stewardship"),
+    DemoOption("informatica_cdgc", "Informatica CDGC", "Cloud data governance and catalog"),
+    DemoOption("atlan", "Atlan", "Catalog, lineage and glossary"),
+    DemoOption("purview", "Microsoft Purview", "Catalog, classification and policy"),
+    DemoOption("platform_native", "Platform-native only", "No third-party catalog in the estate"),
+)
+
+#: Where data-quality rules and results actually live.
+DQ_TOOL_CATALOG: tuple[DemoOption, ...] = (
+    DemoOption("monte_carlo", "Monte Carlo", "Observability platform with incident workflow"),
+    DemoOption("great_expectations", "Great Expectations", "Declarative expectations in the pipeline"),
+    DemoOption("soda", "Soda", "Checks-as-code with a results store"),
+    DemoOption("ataccama", "Ataccama", "Rules, profiling and remediation workflow"),
+    DemoOption("snowflake_native", "Snowflake-native", "Data metric functions in the warehouse"),
+    DemoOption("oracle_edq", "Oracle EDQ", "Rules and results held in the Oracle estate"),
+    DemoOption("platform_native", "Platform-native only", "Whatever the platform ships, nothing more"),
+)
+
+#: Assessment scope switches. Turning one off removes the connector capability,
+#: so the affected checks are reported as *not measured* rather than scored as
+#: zero -- which is what a real estate without that surface produces.
+SCOPE_CATALOG: tuple[DemoOption, ...] = (
+    DemoOption("agents", "Agent estate", "AG-001…AG-007 and the Agent Readiness Index"),
+    DemoOption("rag_corpora", "Retrieval corpora", "RG-001…RG-006 and the RAG Readiness Index"),
+    DemoOption("ml_assets", "ML assets", "AE-001…AE-006, the AI Engineering pillar"),
+    DemoOption("semantic_models", "Semantic layer", "SL-001…SL-005, the Semantic Layer pillar"),
+)
+
+
+def option_keys(catalog: tuple[DemoOption, ...]) -> set[str]:
+    return {option.key for option in catalog}

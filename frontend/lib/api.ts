@@ -45,6 +45,8 @@ export interface AssessmentSummary {
   rri_score: number | null;
   rri_grade: string | null;
   stats: Record<string, any>;
+  /** Harvest runs behind this snapshot, with their non-secret provenance. */
+  connectors?: { connector: string; harvest_run_id: number; stats: Record<string, any> }[];
 }
 
 export interface ScoreLine {
@@ -197,6 +199,147 @@ export interface StewardView {
   findings_queue: EvidenceRecord[];
   draft_recommendations: Recommendation[];
   workload: { pending_review: number; open_findings: number; failing_targets: number };
+}
+
+// -- live demo -------------------------------------------------------------- //
+
+export interface DemoOption {
+  key: string;
+  label: string;
+  note: string;
+}
+
+export interface DemoOptions {
+  platforms: DemoOption[];
+  governance_tools: DemoOption[];
+  dq_tools: DemoOption[];
+  scopes: DemoOption[];
+  size_bands: DemoOption[];
+  industries: DemoOption[];
+  maturities: DemoOption[];
+  defaults: {
+    organisation: string;
+    industry: string;
+    platform: string;
+    governance_tool: string;
+    dq_tool: string;
+    maturity: string;
+    size_band: string;
+    seed: number;
+    scopes_off: string[];
+  };
+  advisor: "model" | "template";
+  synthetic: boolean;
+}
+
+export interface DemoRunRequest {
+  organisation: string;
+  industry: string;
+  platform: string;
+  governance_tool: string;
+  dq_tool: string;
+  maturity: string;
+  size_band: string;
+  seed: number;
+  scopes_off: string[];
+}
+
+export interface DemoRunResult {
+  snapshot_id: string;
+  tenant_key: string;
+  tenant: string;
+  composite_score: number | null;
+  grade: string | null;
+  ari_score: number | null;
+  rri_score: number | null;
+  snapshot_hash: string | null;
+  stats: Record<string, any>;
+  configuration: Record<string, any>;
+}
+
+// -- action plan ------------------------------------------------------------ //
+
+export interface ActionPlayRef extends Recommendation {}
+
+export interface ActionBlocker extends Cap {
+  check_title: string;
+  current_result: number | null;
+  failing_sample: string[];
+  failing_total: number;
+  plays: ActionPlayRef[];
+  owner: string;
+}
+
+export interface ArchitectAction {
+  kind: "below_target" | "no_coverage";
+  criterion_key: string;
+  criterion: string;
+  pillar_key: string;
+  pillar: string;
+  check_id: string;
+  check_description: string;
+  score: number | null;
+  target: number | null;
+  shortfall: number | null;
+  priority: number;
+  pillar_capped_by?: string | null;
+  requires?: string[];
+  failing_total: number;
+  failing_sample: string[];
+  plays: ActionPlayRef[];
+  owner: string;
+}
+
+export interface StewardAction {
+  kind: "decide" | "remediate";
+  evidence_id: number;
+  check_id: string;
+  check_title: string;
+  pillar_key: string;
+  severity?: string;
+  result: number;
+  confidence: number;
+  rationale: string;
+  failing_total: number;
+  failing_sample: string[];
+  owner: string;
+  action: string;
+}
+
+export interface ActionPlanView {
+  assessment: AssessmentSummary;
+  blockers: ActionBlocker[];
+  architect_actions: ArchitectAction[];
+  steward_actions: StewardAction[];
+  horizons: {
+    horizon: string;
+    label: string;
+    effort_days: number;
+    cost_estimate: number;
+    projected_impact: number;
+    cumulative_impact: number;
+    projected_composite: number;
+    projected_grade: string;
+    recommendations: Recommendation[];
+  }[];
+  projection: {
+    current_composite: number;
+    current_grade: string | null;
+    projected_composite: number;
+    projected_grade: string;
+    total_effort_days: number;
+    total_cost_estimate: number;
+  };
+  summary: {
+    blockers: number;
+    blockers_binding: number;
+    architect_actions: number;
+    architect_below_target: number;
+    coverage_gaps: number;
+    steward_decisions: number;
+    steward_remediations: number;
+    failing_objects: number;
+  };
 }
 
 // -- scoring pillars (academy) ---------------------------------------------- //
@@ -552,6 +695,30 @@ export const stewardView = (snapshotId: string) =>
   get<StewardView>(`/api/assessments/${snapshotId}/dashboard/steward`);
 
 export const pillarGuide = () => get<PillarGuideView>("/api/pillars");
+
+export const demoOptions = () => get<DemoOptions>("/api/demo/options");
+
+export const actionPlan = (snapshotId: string) =>
+  get<ActionPlanView>(`/api/assessments/${snapshotId}/action-plan`);
+
+/** Run one live-demo assessment. Only called from a server action. */
+export const runDemo = async (body: DemoRunRequest): Promise<DemoRunResult> => {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}/api/demo/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw new ApiUnavailable("/api/demo/run", error);
+  }
+  if (!response.ok) {
+    throw new Error(`demo run failed: ${response.status} ${await response.text()}`);
+  }
+  return (await response.json()) as DemoRunResult;
+};
 
 export const methodology = (snapshotId?: string) =>
   get<MethodologyView>(

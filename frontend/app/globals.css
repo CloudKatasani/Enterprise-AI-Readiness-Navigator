@@ -493,6 +493,10 @@ a.org-card[aria-current="true"] {
   font-weight: 600;
   color: var(--org-accent);
 }
+.org-card .org-demo {
+  color: var(--text-faint);
+  font-weight: 500;
+}
 .org-card .org-meta {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -587,6 +591,188 @@ a.org-card[aria-current="true"] {
   background: var(--surface-raised);
   border-color: var(--border);
   color: var(--ocean-700);
+}
+
+/* -- live demo ------------------------------------------------------------ */
+
+.demo-form {
+  display: block;
+}
+.demo-form .card {
+  margin-bottom: 0.9rem;
+}
+.field-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.field-label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.field-hint {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+.field select,
+.field input {
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.field select:focus,
+.field input:focus {
+  outline: 2px solid var(--ocean-500);
+  outline-offset: 1px;
+}
+
+.scope-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+.scope {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  background: var(--surface-sunken);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+}
+.scope span {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.86rem;
+}
+.scope input {
+  margin-top: 0.2rem;
+}
+
+.run-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.2rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+.run-button {
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #fff;
+  background: linear-gradient(135deg, var(--ocean-700), var(--ocean-500));
+  border: none;
+  border-radius: 999px;
+  padding: 0.7rem 1.6rem;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.run-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.run-button:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.runner .stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.runner .stages li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.7rem;
+  align-items: baseline;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  opacity: 0.5;
+}
+.runner .stages li.done,
+.runner .stages li.active {
+  opacity: 1;
+}
+.runner .stages li.active {
+  outline: 2px solid var(--ocean-500);
+}
+.runner .stage-name {
+  font-weight: 650;
+  min-width: 7rem;
+}
+.runner .stages li.done .stage-name::after {
+  content: " ✓";
+  color: var(--grade-ready);
+}
+.runner .stage-detail {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+/* -- action plan ---------------------------------------------------------- */
+
+.projection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  align-items: center;
+  margin-bottom: 1.1rem;
+}
+.projection > div strong {
+  display: block;
+  font-size: 2rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.projection > div span.muted {
+  font-size: 0.84rem;
+}
+.projection-arrow {
+  font-size: 1.6rem;
+  color: var(--text-faint);
+}
+
+.plays {
+  margin-top: 0.5rem;
+}
+.plays details {
+  background: var(--surface-sunken);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.86rem;
+}
+.plays summary,
+.failing summary {
+  cursor: pointer;
+}
+.failing {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.steward-item {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.steward-item:last-child {
+  border-bottom: none;
 }
 
 /* -- scoring pillars (academy) ------------------------------------------- */
