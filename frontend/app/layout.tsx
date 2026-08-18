@@ -24,10 +24,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/steward">Steward</Link>
               <Link href="/demo">Live Demo</Link>
               <Link href="/connectors">Connectors</Link>
-              <Link href="/api-docs">API Documentation</Link>
-              <Link href="/data-model">Data Model</Link>
               <Link href="/pillars">Scoring Pillars</Link>
               <Link href="/methodology">Methodology</Link>
+              <Link href="/api-docs">API Documentation</Link>
+              <Link href="/data-model">Data Model</Link>
             </nav>
           </div>
         </header>

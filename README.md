@@ -188,6 +188,49 @@ versioned alongside the rubric it explains. Weights, questions, targets and chec
 rubric tables and never restated in the guide, so the two cannot disagree; tests assert that every
 rubric pillar and index has teaching content and that every number on the page comes from the rubric.
 
+### A methodology page that shows its working
+
+`/methodology` is the page to hand a client who asks *"where does this number come from?"*. It works
+the entire calculation through one estate's own evidence:
+
+1. **The sample data** — the harvest the score was computed from, down to sample datasets, columns,
+   policies, grants, agents and corpora. For the demo portfolio it states plainly that the estate is
+   synthetic, names the industry and maturity profiles that shaped it and the seed that reproduces
+   it, and says what changes in a real assessment (the connector, and nothing else).
+2. **One check → one evidence record** — a single check narrated field by field: what was counted,
+   the division that produced the result, the confidence tier, and the objects that failed.
+3. **Criteria → pillar score** — every pillar's full criterion table with `score × weight`, the
+   weighted mean, and the cap if one binds.
+4. **Pillars → composite** — the same arithmetic one level up, with the grade band it lands in.
+5. **Hard blockers**, **the two overlay indices**, and **the confidence tiers** that decide what is
+   allowed to count at all.
+6. **What is missing** — the criteria that produced no score, kept apart by *kind*: the connector
+   could not observe it, the evidence is waiting on a reviewer, or the estate contains nothing of
+   that kind. Plus what EAIRN never collects under any configuration.
+
+Every weighted mean on that page is **recomputed in the view** from the stored score lines and
+compared with what the Scoring Engine wrote; each one is labelled with whether it reconciles, and a
+test asserts that all of them do.
+
+---
+
+## Architecture
+
+```
+Portal (Next.js)  ──►  API (FastAPI)
+                          │
+        ┌─────────────────┼──────────────────┬──────────────┬─────────────────┐
+        ▼                 ▼                  ▼              ▼                 ▼
+   Connectors       Metadata Engine    Scoring Engine   Recommendation    AI Advisor
+   (read-only)      (canonical model)  (rubric as data)    Engine       (grounded in
+        │                 │                  │          (playbooks as     the snapshot)
+        └───► harvest ───►│                  │            data)
+                          ▼                  ▼
+                     Evidence records ──► Immutable snapshot (hash-keyed)
+```
+
+Details in [docs/architecture.md](docs/architecture.md).
+
 ### API Documentation — the wiring diagram for a real deployment
 
 `/api-docs` is the page for whoever has to turn the demo into a running system. For every connector
@@ -248,49 +291,6 @@ flags when the running instance is on SQLite rather than a production target, an
 things a reviewer asks: SQLite is development-only, real deployments run Alembic rather than
 `create_all`, no customer rows are stored under any configuration, and every tenant-keyed table
 cascades back to `tenants` so removing an organisation is one statement rather than a cleanup script.
-
-### A methodology page that shows its working
-
-`/methodology` is the page to hand a client who asks *"where does this number come from?"*. It works
-the entire calculation through one estate's own evidence:
-
-1. **The sample data** — the harvest the score was computed from, down to sample datasets, columns,
-   policies, grants, agents and corpora. For the demo portfolio it states plainly that the estate is
-   synthetic, names the industry and maturity profiles that shaped it and the seed that reproduces
-   it, and says what changes in a real assessment (the connector, and nothing else).
-2. **One check → one evidence record** — a single check narrated field by field: what was counted,
-   the division that produced the result, the confidence tier, and the objects that failed.
-3. **Criteria → pillar score** — every pillar's full criterion table with `score × weight`, the
-   weighted mean, and the cap if one binds.
-4. **Pillars → composite** — the same arithmetic one level up, with the grade band it lands in.
-5. **Hard blockers**, **the two overlay indices**, and **the confidence tiers** that decide what is
-   allowed to count at all.
-6. **What is missing** — the criteria that produced no score, kept apart by *kind*: the connector
-   could not observe it, the evidence is waiting on a reviewer, or the estate contains nothing of
-   that kind. Plus what EAIRN never collects under any configuration.
-
-Every weighted mean on that page is **recomputed in the view** from the stored score lines and
-compared with what the Scoring Engine wrote; each one is labelled with whether it reconciles, and a
-test asserts that all of them do.
-
----
-
-## Architecture
-
-```
-Portal (Next.js)  ──►  API (FastAPI)
-                          │
-        ┌─────────────────┼──────────────────┬──────────────┬─────────────────┐
-        ▼                 ▼                  ▼              ▼                 ▼
-   Connectors       Metadata Engine    Scoring Engine   Recommendation    AI Advisor
-   (read-only)      (canonical model)  (rubric as data)    Engine       (grounded in
-        │                 │                  │          (playbooks as     the snapshot)
-        └───► harvest ───►│                  │            data)
-                          ▼                  ▼
-                     Evidence records ──► Immutable snapshot (hash-keyed)
-```
-
-Details in [docs/architecture.md](docs/architecture.md).
 
 ### Connector status
 
