@@ -193,3 +193,6 @@ prints each organisation as it completes.
 - **SQLite is development-only.** The schema relies on foreign-key cascades and concurrent writers
   that Postgres handles properly. `/data-model` shows the Postgres DDL a real deployment gets, and
   flags when the running instance is on SQLite.
+
+To host it on a server, [docs/deploy-aws-ec2.md](docs/deploy-aws-ec2.md) walks through a single
+EC2 instance behind Caddy.
