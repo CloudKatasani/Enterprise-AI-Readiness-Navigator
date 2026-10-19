@@ -4,6 +4,12 @@ The simplest production setup: one EC2 instance runs the API and the Portal as s
 and Caddy sits in front of them, serving HTTPS on port 443 with a certificate it obtains and renews
 itself.
 
+No domain is needed. The site is served at
+`https://enterprise-ai-readiness-navigator.<public-ip>.sslip.io`.
+[sslip.io](https://sslip.io) is a free public DNS service that resolves any name containing an IP
+address to that IP, so `enterprise-ai-readiness-navigator.3.91.20.15.sslip.io` points at
+`3.91.20.15`. That gives Caddy a real hostname to get a Let's Encrypt certificate for.
+
 ```
 Internet ──443/80──▶ Caddy ──▶ Portal (127.0.0.1:3000) ──▶ API (127.0.0.1:8000) ──▶ SQLite
 ```
@@ -23,10 +29,11 @@ Manager**. If you are on Amazon Linux 2023, see the [note at the end](#amazon-li
 2. **Disk:** 20 GB is plenty.
 3. **Security group inbound rules:** allow **TCP 80** and **TCP 443** from `0.0.0.0/0`.
    Session Manager needs no inbound port, so you do not need to open 22.
-4. **Elastic IP (recommended):** allocate one and associate it with the instance, so the address
-   survives a restart.
-5. **Domain (for HTTPS):** create a DNS **A record**, e.g. `eairn.example.com`, pointing at the
-   Elastic IP. No domain? You can still run on plain HTTP using the IP — see step 6.
+4. **Elastic IP (strongly recommended):** allocate one and associate it with the instance. The
+   site's address contains the IP, so without an Elastic IP the address changes every time the
+   instance is stopped and started.
+
+No DNS records to create: sslip.io handles that.
 
 ---
 
@@ -168,30 +175,53 @@ apt-get update
 apt-get install -y caddy
 ```
 
-Write the Caddyfile. **Replace `eairn.example.com` with your domain:**
+Work out the site's hostname from the instance's public IP. This asks the EC2 metadata service, so
+there is nothing to type in:
 
 ```bash
-cat > /etc/caddy/Caddyfile <<'EOF'
-eairn.example.com {
+TOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+PUBLIC_IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
+SITE="enterprise-ai-readiness-navigator.${PUBLIC_IP}.sslip.io"
+echo "$SITE"
+```
+
+The `echo` should print something like `enterprise-ai-readiness-navigator.3.91.20.15.sslip.io`. If
+the IP part is empty, the instance has no public IP: attach an Elastic IP (step 0) and run the block
+again.
+
+Write the Caddyfile and reload Caddy:
+
+```bash
+cat > /etc/caddy/Caddyfile <<EOF
+${SITE} {
     encode gzip
     reverse_proxy 127.0.0.1:3000
 }
 EOF
+cat /etc/caddy/Caddyfile
 systemctl reload caddy
 ```
 
-Caddy fetches a Let's Encrypt certificate on its own within a few seconds. This needs the DNS record
-from step 0 to already point at the instance and port 80 to be open.
-
-**No domain yet?** Use `:80` instead of the domain name on the first line. The site is then served
-over plain HTTP at `http://<elastic-ip>`. Swap the domain in later and reload Caddy to get HTTPS.
+Caddy gets a Let's Encrypt certificate for that name on its own, within about a minute. Ports 80
+and 443 must be open in the security group (step 0), because Let's Encrypt checks the instance over
+them.
 
 ---
 
 ## 7. Open it
 
-Browse to **https://eairn.example.com** (or `http://<elastic-ip>`). You should see the portfolio of
-13 assessed organisations.
+Browse to the address the `echo` printed, with `https://` in front:
+
+```
+https://enterprise-ai-readiness-navigator.<public-ip>.sslip.io
+```
+
+You should see the portfolio of 13 assessed organisations. Run `echo "https://$SITE"` on the
+instance if you need the address again.
+
+**If the IP changes** (no Elastic IP and the instance was restarted), re-run the whole step 6 block
+from `TOKEN=` onward. Caddy fetches a certificate for the new name and the old address stops
+working.
 
 ---
 
@@ -218,7 +248,8 @@ re-run the bootstrap from step 3.
 | Page says "The EAIRN API is not reachable" | `systemctl status eairn-api` and `journalctl -u eairn-api -n 50` |
 | Page says "No assessments yet" | The bootstrap in step 3 was not run (or ran as a different user). Re-run it. |
 | Browser can't connect at all | Security group allows 80/443? `systemctl status caddy` |
-| HTTPS certificate error | DNS A record points at this instance? `journalctl -u caddy -n 50` shows the ACME error. |
+| HTTPS certificate error | Ports 80 and 443 open? Does `cat /etc/caddy/Caddyfile` show the instance's *current* public IP? `journalctl -u caddy -n 50` shows the Let's Encrypt error. |
+| `dig +short <site-name>` doesn't return the IP | Some company networks block sslip.io. Try from a phone on mobile data. |
 | `npm run build` killed / out of memory | Add swap (section 1) or use a larger instance. |
 | Portal service keeps restarting | `journalctl -u eairn-portal -n 50` — usually the build in step 4 did not finish. |
 
@@ -259,5 +290,5 @@ mkdir -p /etc/caddy
 curl -fsSL https://raw.githubusercontent.com/caddyserver/dist/master/init/caddy.service -o /etc/systemd/system/caddy.service
 ```
 
-Then write the Caddyfile as in step 6 and run `systemctl daemon-reload && systemctl enable --now caddy`
+Then run the step 6 block from `TOKEN=` onward, but use `systemctl daemon-reload && systemctl enable --now caddy`
 in place of `systemctl reload caddy`.
