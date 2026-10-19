@@ -216,8 +216,8 @@ Browse to the address the `echo` printed, with `https://` in front:
 https://enterprise-ai-readiness-navigator.<public-ip>.sslip.io
 ```
 
-You should see the portfolio of 13 assessed organisations. Run `echo "https://$SITE"` on the
-instance if you need the address again.
+You should see the portfolio of 13 assessed organisations. If you need the address again later, run
+`head -1 /etc/caddy/Caddyfile` on the instance.
 
 **If the IP changes** (no Elastic IP and the instance was restarted), re-run the whole step 6 block
 from `TOKEN=` onward. Caddy fetches a certificate for the new name and the old address stops
