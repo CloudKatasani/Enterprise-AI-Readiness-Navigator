@@ -1,43 +1,31 @@
 # Deploying EAIRN on AWS EC2 with Caddy
 
-The simplest production setup: one EC2 instance runs the API and the Portal as systemd services,
-and Caddy sits in front of them, serving HTTPS on port 443 with a certificate it obtains and renews
-itself.
+EAIRN runs on the existing EC2 instance at **13.49.239.78**, next to the apps already served there,
+at:
 
-No domain is needed. The site is served at
-`https://enterprise-ai-readiness-navigator.<public-ip>.sslip.io`.
-[sslip.io](https://sslip.io) is a free public DNS service that resolves any name containing an IP
-address to that IP, so `enterprise-ai-readiness-navigator.3.91.20.15.sslip.io` points at
-`3.91.20.15`. That gives Caddy a real hostname to get a Let's Encrypt certificate for.
+**https://enterprise-ai-readiness-navigator.13-49-239-78.sslip.io**
+
+It follows the same pattern as
+`https://fractional-ai-architecture-office.13-49-239-78.sslip.io`: one Caddy on the instance serves
+every app on its own sslip.io hostname, each with its own HTTPS certificate.
+[sslip.io](https://sslip.io) is a free DNS service that resolves any name containing an IP to that
+IP, so no domain or DNS record is needed.
 
 ```
-Internet ──443/80──▶ Caddy ──▶ Portal (127.0.0.1:3000) ──▶ API (127.0.0.1:8000) ──▶ SQLite
+Internet ──443──▶ Caddy ─┬─▶ fractional-ai-architecture-office…  (existing, unchanged)
+                         └─▶ enterprise-ai-readiness-navigator…  ──▶ Portal 127.0.0.1:3100
+                                                                      └─▶ API 127.0.0.1:8100 ──▶ SQLite
 ```
 
-Only Caddy is reachable from outside. The Portal calls the API server-side over loopback, so the API
-never needs a public port.
+EAIRN uses ports **3100** (Portal) and **8100** (API), bound to `127.0.0.1` only. That keeps it clear
+of the default 3000/8000, which the existing app may already use. Only Caddy is reachable from
+outside.
 
-These steps assume **Ubuntu 24.04** and a shell opened through **AWS Systems Manager → Session
-Manager**. If you are on Amazon Linux 2023, see the [note at the end](#amazon-linux-2023).
+All commands are run in a **Session Manager** shell on the instance.
 
 ---
 
-## 0. Before you start (AWS console)
-
-1. **Instance size:** `t3.small` (2 GB RAM) or larger. The Next.js build needs more memory than a
-   `t3.micro` has; if you use a micro, do the swap step in section 1.
-2. **Disk:** 20 GB is plenty.
-3. **Security group inbound rules:** allow **TCP 80** and **TCP 443** from `0.0.0.0/0`.
-   Session Manager needs no inbound port, so you do not need to open 22.
-4. **Elastic IP (strongly recommended):** allocate one and associate it with the instance. The
-   site's address contains the IP, so without an Elastic IP the address changes every time the
-   instance is stopped and started.
-
-No DNS records to create: sslip.io handles that.
-
----
-
-## 1. Become root and install the prerequisites
+## 0. Check the instance
 
 Session Manager logs you in as `ssm-user` in a basic `sh` shell. Switch to root so you can paste the
 rest without `sudo`:
@@ -46,22 +34,48 @@ rest without `sudo`:
 sudo -i
 ```
 
-Install Python, Git and Node.js 22:
+Confirm the two ports are free. This should print nothing:
+
+```bash
+ss -ltn | grep -E ':(3100|8100)\b'
+```
+
+If it prints a line, pick other ports and change every `3100`/`8100` below to match.
+
+Check what is already installed:
+
+```bash
+head -2 /etc/os-release
+python3 --version; node --version; caddy version
+```
+
+You need **Python ≥ 3.11** and **Node ≥ 20.9**. Caddy is already there, since it serves the existing
+app. The security group already allows 80/443 for the same reason.
+
+---
+
+## 1. Install anything missing
+
+Skip whatever step 0 showed is already installed at the right version.
+
+**Ubuntu:**
 
 ```bash
 apt-get update
 apt-get install -y python3 python3-venv python3-pip git curl
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt-get install -y nodejs
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs
 ```
 
-Check the versions (Python ≥ 3.11, Node ≥ 20.9):
+**Amazon Linux 2023:** its default `python3` is 3.9, which is too old. Install 3.11 and use
+`python3.11` in place of `python3` in step 3:
 
 ```bash
-python3 --version && node --version
+dnf install -y python3.11 python3.11-pip git
+curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && dnf install -y nodejs
 ```
 
-*Optional, only on a `t3.micro`:* add 2 GB of swap so the build does not run out of memory.
+The Next.js build needs about 1.5 GB of memory. On an instance with 1 GB of RAM (`free -h`), add swap
+first:
 
 ```bash
 fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
@@ -104,17 +118,17 @@ else works the same.
 
 ## 4. Build the Portal
 
+The API address is compiled into the Portal at build time, so it is set on the build command:
+
 ```bash
 cd /opt/eairn/frontend
 sudo -u eairn npm ci
-sudo -u eairn npm run build
+sudo -u eairn EAIRN_API_URL=http://127.0.0.1:8100 npm run build
 ```
 
 ---
 
 ## 5. Run both as services
-
-Create the two service files:
 
 ```bash
 cat > /etc/systemd/system/eairn-api.service <<'EOF'
@@ -125,7 +139,7 @@ After=network.target
 [Service]
 User=eairn
 WorkingDirectory=/opt/eairn/backend
-ExecStart=/opt/eairn/backend/.venv/bin/uvicorn eairn.main:app --host 127.0.0.1 --port 8000
+ExecStart=/opt/eairn/backend/.venv/bin/uvicorn eairn.main:app --host 127.0.0.1 --port 8100
 Restart=always
 
 [Install]
@@ -141,17 +155,14 @@ After=network.target eairn-api.service
 User=eairn
 WorkingDirectory=/opt/eairn/frontend
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/npm start -- -H 127.0.0.1 -p 3000
+Environment=EAIRN_API_URL=http://127.0.0.1:8100
+ExecStart=/usr/bin/npm start -- -H 127.0.0.1 -p 3100
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOF
-```
 
-Start them, and have them start on every boot:
-
-```bash
 systemctl daemon-reload
 systemctl enable --now eairn-api eairn-portal
 ```
@@ -159,69 +170,51 @@ systemctl enable --now eairn-api eairn-portal
 Check both are answering:
 
 ```bash
-curl -s http://127.0.0.1:8000/health
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000    # expect 200
+curl -s http://127.0.0.1:8100/health
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3100    # expect 200
 ```
 
 ---
 
-## 6. Install Caddy and point it at the Portal
+## 6. Add the site to Caddy
+
+The Caddyfile already holds the existing app's site, so **add to it, don't replace it**. Take a
+backup, then append the new site block:
 
 ```bash
-apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
-apt-get update
-apt-get install -y caddy
-```
+cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak
 
-Work out the site's hostname from the instance's public IP. This asks the EC2 metadata service, so
-there is nothing to type in:
+cat >> /etc/caddy/Caddyfile <<'EOF'
 
-```bash
-TOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-PUBLIC_IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
-SITE="enterprise-ai-readiness-navigator.${PUBLIC_IP}.sslip.io"
-echo "$SITE"
-```
-
-The `echo` should print something like `enterprise-ai-readiness-navigator.3.91.20.15.sslip.io`. If
-the IP part is empty, the instance has no public IP: attach an Elastic IP (step 0) and run the block
-again.
-
-Write the Caddyfile and reload Caddy:
-
-```bash
-cat > /etc/caddy/Caddyfile <<EOF
-${SITE} {
+enterprise-ai-readiness-navigator.13-49-239-78.sslip.io {
     encode gzip
-    reverse_proxy 127.0.0.1:3000
+    reverse_proxy 127.0.0.1:3100
 }
 EOF
-cat /etc/caddy/Caddyfile
+```
+
+Check the file, then reload. `reload` applies the change without dropping the existing site:
+
+```bash
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 systemctl reload caddy
 ```
 
-Caddy gets a Let's Encrypt certificate for that name on its own, within about a minute. Ports 80
-and 443 must be open in the security group (step 0), because Let's Encrypt checks the instance over
-them.
+If `validate` reports an error, put the backup back with
+`cp /etc/caddy/Caddyfile.bak /etc/caddy/Caddyfile` and don't reload. If Caddy on this instance runs
+from a different config file (`systemctl cat caddy` shows the path after `--config`), append to that
+file instead.
+
+Caddy gets a Let's Encrypt certificate for the new name on its own, within about a minute.
 
 ---
 
 ## 7. Open it
 
-Browse to the address the `echo` printed, with `https://` in front:
+**https://enterprise-ai-readiness-navigator.13-49-239-78.sslip.io**
 
-```
-https://enterprise-ai-readiness-navigator.<public-ip>.sslip.io
-```
-
-You should see the portfolio of 13 assessed organisations. If you need the address again later, run
-`head -1 /etc/caddy/Caddyfile` on the instance.
-
-**If the IP changes** (no Elastic IP and the instance was restarted), re-run the whole step 6 block
-from `TOKEN=` onward. Caddy fetches a certificate for the new name and the old address stops
-working.
+You should see the portfolio of 13 assessed organisations. The existing app at
+`https://fractional-ai-architecture-office.13-49-239-78.sslip.io` keeps working as before.
 
 ---
 
@@ -231,7 +224,7 @@ working.
 sudo -i
 cd /opt/eairn && sudo -u eairn git pull
 cd backend && sudo -u eairn .venv/bin/pip install -r requirements.txt
-cd ../frontend && sudo -u eairn npm ci && sudo -u eairn npm run build
+cd ../frontend && sudo -u eairn npm ci && sudo -u eairn EAIRN_API_URL=http://127.0.0.1:8100 npm run build
 systemctl restart eairn-api eairn-portal
 ```
 
@@ -245,50 +238,27 @@ re-run the bootstrap from step 3.
 
 | Symptom | Check |
 |---|---|
-| Page says "The EAIRN API is not reachable" | `systemctl status eairn-api` and `journalctl -u eairn-api -n 50` |
+| Page says "The EAIRN API is not reachable" | `systemctl status eairn-api`, `journalctl -u eairn-api -n 50`. The URL it shows should end in `:8100`; if it says `:8000`, the build in step 4 missed `EAIRN_API_URL`. Rebuild and restart the portal. |
 | Page says "No assessments yet" | The bootstrap in step 3 was not run (or ran as a different user). Re-run it. |
-| Browser can't connect at all | Security group allows 80/443? `systemctl status caddy` |
-| HTTPS certificate error | Ports 80 and 443 open? Does `cat /etc/caddy/Caddyfile` show the instance's *current* public IP? `journalctl -u caddy -n 50` shows the Let's Encrypt error. |
-| `dig +short <site-name>` doesn't return the IP | Some company networks block sslip.io. Try from a phone on mobile data. |
-| `npm run build` killed / out of memory | Add swap (section 1) or use a larger instance. |
-| Portal service keeps restarting | `journalctl -u eairn-portal -n 50` — usually the build in step 4 did not finish. |
+| `502 Bad Gateway` | Caddy is up but the Portal isn't: `systemctl status eairn-portal`. |
+| HTTPS certificate error | `journalctl -u caddy -n 50` shows the Let's Encrypt error. |
+| Portal service keeps restarting | `journalctl -u eairn-portal -n 50`. Usually the build in step 4 didn't finish. |
+| `npm run build` killed / out of memory | Add swap (step 1). |
+| Existing app broke after step 6 | `cp /etc/caddy/Caddyfile.bak /etc/caddy/Caddyfile && systemctl reload caddy`. |
 
-Live logs for everything: `journalctl -fu eairn-api -u eairn-portal -u caddy`.
+Live logs: `journalctl -fu eairn-api -u eairn-portal -u caddy`.
 
 ---
 
 ## Notes
 
+- **Keep the IP fixed.** The hostname contains `13-49-239-78`. If that is an Elastic IP it never
+  changes. If it is not, the address changes every time the instance stops and starts. Attach an
+  Elastic IP to avoid that.
 - **SQLite is fine for a demo, not for real customer data.** For a real deployment set
-  `EAIRN_DATABASE_URL` in `/opt/eairn/backend/.env` to a Postgres database (for example Amazon RDS)
-  — see [RUNNING.md](../RUNNING.md#configuration).
+  `EAIRN_DATABASE_URL` in `/opt/eairn/backend/.env` to a Postgres database (for example Amazon RDS);
+  see [RUNNING.md](../RUNNING.md#configuration).
 - **Backups:** with SQLite, the whole state is the one file `/opt/eairn/backend/eairn.db`. An EBS
   snapshot of the volume covers it.
-- **The OpenAPI browser** (`/docs` on the API) is not exposed publicly. To view it, run
-  `curl http://127.0.0.1:8000/openapi.json` on the instance, or use a Session Manager port forward.
-
-### Amazon Linux 2023
-
-Only section 1 and section 6 differ. Replace the prerequisites with:
-
-```bash
-sudo -i
-dnf install -y python3.11 python3.11-pip git
-curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
-dnf install -y nodejs
-```
-
-and use `python3.11` instead of `python3` in step 3. In step 2, the `nologin` shell is at
-`/sbin/nologin`. Caddy has no AL2023 package, so install the official binary:
-
-```bash
-curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o /usr/bin/caddy   # arch=arm64 on Graviton
-chmod +x /usr/bin/caddy
-groupadd --system caddy
-useradd --system --gid caddy --create-home --home-dir /var/lib/caddy --shell /sbin/nologin caddy
-mkdir -p /etc/caddy
-curl -fsSL https://raw.githubusercontent.com/caddyserver/dist/master/init/caddy.service -o /etc/systemd/system/caddy.service
-```
-
-Then run the step 6 block from `TOKEN=` onward, but use `systemctl daemon-reload && systemctl enable --now caddy`
-in place of `systemctl reload caddy`.
+- **The OpenAPI browser** (`/docs` on the API) is not exposed publicly. On the instance,
+  `curl http://127.0.0.1:8100/openapi.json` returns the spec.
